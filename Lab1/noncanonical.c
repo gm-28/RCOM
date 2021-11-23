@@ -30,23 +30,30 @@ int state = 0; //estado
 int checksum = 0;
 int count=0;
 
-char destuffing(char* buf){
-  char tmp_buf[BUF_SIZE];                            // se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
-  
-  for(int i=0;i<BUF_SIZE;i++){
-    if(buf[i]== 0x7d && buf[i++]==0x5e && count != 0){
+// se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
+char destuffing(char* buf)
+{
+  char tmp_buf[BUF_SIZE];
+
+  for(int i=0;i<BUF_SIZE;i++)
+  {
+    if(buf[i]== 0x7d && buf[i++]==0x5e && count != 0)
+    {
       tmp_buf[count]=FLAG;
       count++;
-    }else if(buf[i]==FLAG && count != 0){
+    }
+    else if(buf[i]==FLAG && count != 0)
+    {
       tmp_buf[count]=FLAG;
       count++;
       break;
-    }else{
+    }
+    else
+    {
       tmp_buf[count]=buf[i];
       count++;
     }
   }
-  
   return *tmp_buf;
 }
 
@@ -205,9 +212,9 @@ int main(int argc, char** argv)
     {
         // Returns after 5 chars have been input
         int bytes = read(fd, buf, BUF_SIZE);
-        
+
         buf[count] = destuffing(buf);
-        printf("%d\n",count);
+        //printf("%d\n",count);
         for (int i = 0; i < count; i++)
         {
           printf("%02X ", buf[i]);

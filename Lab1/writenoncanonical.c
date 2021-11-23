@@ -40,29 +40,36 @@ bool stuffed;
 int count=0;
 
 char stuffing (char* buf) //obj: se a FLAG aparecer em A OU C fazer stuffing e retornar true caso ocorra stuffing e false caso contrario
-{    
-  char tmp_buf[BUF_SIZE];                            // se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
-  
-  for(int i=0;i<BUF_SIZE;i++){
-    if(buf[i]==FLAG && count != 0){
+{ // se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
+  char tmp_buf[BUF_SIZE];
+
+  for(int i=0;i<BUF_SIZE;i++)
+  {
+    if(buf[i]==FLAG && count != 0)
+    {
       count++;
-      if(!checksum){
+      if(!checksum)
+      {
         tmp_buf[count]=0x7d;
         count++;
         tmp_buf[count]=0x5e;
-      }else{
+      }
+      else
+      {
         tmp_buf[count]=FLAG;
         break;
       }
-    }else{
+    }
+    else
+    {
       tmp_buf[count]=buf[i];
       count++;
-      if(buf[i] == BCC1){
+      if(buf[i] == BCC1)
+      {
         checksum=1;
       }
     }
   }
-  
   return *tmp_buf;
 }
 
@@ -249,12 +256,12 @@ int main(int argc, char** argv)
         {
             printf("%02X ", buf[i]);
         }
-        
+
         int bytes = write(fd, buf, count);
-        
+
         alarm(3);  // Set alarm to be triggered in 3s
         atemptStart = TRUE;
-        
+
         printf("\nSET Frame Sent\n");
         printf("%d bytes written\n", bytes);
         printf("Waiting for UA\n");
