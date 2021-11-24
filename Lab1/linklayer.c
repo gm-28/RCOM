@@ -22,8 +22,8 @@ int checksum = 0;
 bool stuffed;
 int count=0;
 
-char destuffing(char* buf){
-  char tmp_buf[MAX_PAYLOAD_SIZE];                            // se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
+unsigned char destuffing(unsigned char* buf){
+  unsigned char tmp_buf[MAX_PAYLOAD_SIZE];                            // se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
 
   for(int i=0;i<MAX_PAYLOAD_SIZE;i++){
     if(buf[i]== 0x7d && buf[i++]==0x5e && count != 0){
@@ -42,8 +42,8 @@ char destuffing(char* buf){
   return *tmp_buf;
 }
 
-char stuffing (char* buf){ //obj: se a FLAG aparecer em A OU C fazer stuffing e retornar true caso ocorra stuffing e false caso contrario
-  char tmp_buf[MAX_PAYLOAD_SIZE];                            // se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
+unsigned char stuffing (unsigned char* buf){ //obj: se a FLAG aparecer em A OU C fazer stuffing e retornar true caso ocorra stuffing e false caso contrario
+  unsigned char tmp_buf[MAX_PAYLOAD_SIZE];                            // se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
 
   for(int i=0;i<MAX_PAYLOAD_SIZE;i++){
     if(buf[i]==FLAG && count != 0){
@@ -86,15 +86,14 @@ void errorcheck(int s){
   checksum = -1; // error
 }
 
-void statemachine(char buf){// pode ser expandida para tratar mais tramas (I, DISC, ...)
+void statemachine(unsigned char buf){// pode ser expandida para tratar mais tramas (I, DISC, ...)
   switch (state){
     case 0: //start
       if (buf == FLAG){
         state = 1;
         checksum = 0;
         printf("FLAG1 received\n");
-      }
-      else{
+      }else{
         errorcheck(state);
       }
       break;
@@ -118,14 +117,11 @@ void statemachine(char buf){// pode ser expandida para tratar mais tramas (I, DI
         checksum = 0;
         printf("C2 received\n");
         checksum++;
-      }
-      else if ((buf == C1) && (ll->role == RECEIVER))
-      {
+      }else if ((buf == C1) && (ll->role == RECEIVER)){
         state = 3;
         printf("C1 received\n");
         checksum++;
-      }
-      else if (buf == FLAG){
+      }else if (buf == FLAG){
         state = 1;
         printf("FLAG received\n");
         errorcheck(state);
@@ -134,16 +130,13 @@ void statemachine(char buf){// pode ser expandida para tratar mais tramas (I, DI
       }
       break;
     case 3: //C
-      if ((buf == (BCC2)) && (ll->role == TRANSMITTER)){ //BCC2
+      if ((buf == (BCC2))){ //BCC2 0x02
         state = 4;
         printf("BCC2 received\n");
-      }
-      if ((buf == (BCC1)) && (ll->role == RECEIVER)) //BCC1
-      {
+      }else if ((buf == (BCC1))){ //BCC1
         state = 4;
         printf("BCC1 received\n");
-      }
-      else if (buf == FLAG){
+      }else if (buf == FLAG){
         state = 1;
         printf("FLAG received\n");
         errorcheck(state);
@@ -156,8 +149,7 @@ void statemachine(char buf){// pode ser expandida para tratar mais tramas (I, DI
         state = 5;
         printf("FLAG2 received\n");
         checksum++;
-      }
-      else{
+      }else{
         errorcheck(state);
       }
       break;
@@ -224,7 +216,7 @@ int llopen(linkLayer connectionParameters){
         do{
             if (atemptStart == FALSE){
                 // Create frame to send
-                char buf[MAX_PAYLOAD_SIZE] = {FLAG, A, C1, BCC1, FLAG};
+                unsigned char buf[MAX_PAYLOAD_SIZE] = {FLAG, A, C1, BCC1, FLAG};
                 buf[count]=stuffing(buf);
 
                 for (int i = 0; i < count; i++){
@@ -248,9 +240,8 @@ int llopen(linkLayer connectionParameters){
 
                     for (int i = 0; i < count; i++){
                         if(checksum != -1){
-                            printf("%02X ", buf[i]);
-                            statemachine(buf[i]);
-                            printf("TESTE ");
+                          printf("%02X ", buf[i]);
+                          statemachine(buf[i]);
                         }
                     }
 
@@ -267,27 +258,25 @@ int llopen(linkLayer connectionParameters){
         // codigo fica aqui preso a espera do 3s do alarme
         }while((state != 5) && (atemptCount < 4));
     }else{                                                      //noncanonical
-        char buf[MAX_PAYLOAD_SIZE];
+        unsigned char buf[MAX_PAYLOAD_SIZE];
         while (STOP == FALSE){
             // Returns after 5 chars have been input
             int bytes = read(fd, buf, MAX_PAYLOAD_SIZE);
-
             buf[count] = destuffing(buf);
-            printf("T %d T\n",count);
 
             for (int i = 0; i < count; i++){
-                printf("%02X ", buf[i]);
-                statemachine(buf[i]);
+              printf("%02X ", buf[i]);
+              statemachine(buf[i]);
             }
 
             printf("%d bytes received\n", bytes);
 
             if (checksum == 2){
                 printf("SET Frame Received Sucessfully\n");
-                char buf[MAX_PAYLOAD_SIZE] = {FLAG, A, C2, BCC2, FLAG};
+                unsigned char buf[MAX_PAYLOAD_SIZE] = {FLAG, A, C2, BCC2, FLAG};
 
                 for (int i = 0; i < count; i++){
-                        printf("%02X ", buf[i]);
+                  printf("%02X ", buf[i]);
                 }
 
                 int bytes = write(fd, buf, count);
