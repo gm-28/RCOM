@@ -24,7 +24,7 @@ int count=0;
 
 char destuffing(char* buf){
   char tmp_buf[MAX_PAYLOAD_SIZE];                            // se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
-  
+
   for(int i=0;i<MAX_PAYLOAD_SIZE;i++){
     if(buf[i]== 0x7d && buf[i++]==0x5e && count != 0){
       tmp_buf[count]=FLAG;
@@ -38,16 +38,15 @@ char destuffing(char* buf){
       count++;
     }
   }
-  
+
   return *tmp_buf;
 }
 
-
-char stuffing (char* buf){ //obj: se a FLAG aparecer em A OU C fazer stuffing e retornar true caso ocorra stuffing e false caso contrario    
+char stuffing (char* buf){ //obj: se a FLAG aparecer em A OU C fazer stuffing e retornar true caso ocorra stuffing e false caso contrario
   char tmp_buf[MAX_PAYLOAD_SIZE];                            // se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
-  
+
   for(int i=0;i<MAX_PAYLOAD_SIZE;i++){
-    if(buf[i]==FLAG && count != 0){   
+    if(buf[i]==FLAG && count != 0){
       count++;
       if(!checksum){
         tmp_buf[count]=0x7d;
@@ -65,7 +64,7 @@ char stuffing (char* buf){ //obj: se a FLAG aparecer em A OU C fazer stuffing e 
       }
     }
   }
-  
+
   return *tmp_buf;
 }
 
@@ -114,10 +113,16 @@ void statemachine(char buf){// pode ser expandida para tratar mais tramas (I, DI
       }
       break;
     case 2: //A
-      if (buf == C2){
+      if ((buf == C2) && (ll->role == TRANSMITTER)) {
         state = 3;
         checksum = 0;
-        printf("C received\n");
+        printf("C2 received\n");
+        checksum++;
+      }
+      else if ((buf == C1) && (ll->role == RECEIVER))
+      {
+        state = 3;
+        printf("C1 received\n");
         checksum++;
       }
       else if (buf == FLAG){
@@ -129,10 +134,16 @@ void statemachine(char buf){// pode ser expandida para tratar mais tramas (I, DI
       }
       break;
     case 3: //C
-      if (buf == (BCC2)){ //BCC2
+      if ((buf == (BCC2)) && (ll->role == TRANSMITTER)){ //BCC2
         state = 4;
-        printf("BCC received\n");
-      }else if (buf == FLAG){
+        printf("BCC2 received\n");
+      }
+      if ((buf == (BCC1)) && (ll->role == RECEIVER)) //BCC1
+      {
+        state = 4;
+        printf("BCC1 received\n");
+      }
+      else if (buf == FLAG){
         state = 1;
         printf("FLAG received\n");
         errorcheck(state);
@@ -164,24 +175,19 @@ int llopen(linkLayer connectionParameters){
     ll->numTries = connectionParameters.numTries;
     ll->timeOut = connectionParameters.timeOut;
     sprintf(ll->serialPort,"%s",connectionParameters.serialPort);
-    printf("LLOPEN %s %d\n", ll->serialPort, ll->role);
-    printf("TEst2\n");
+
     int fd = open(ll->serialPort, O_RDWR | O_NOCTTY );
     if (fd < 0) {
-        printf("TEst2\n");
-        printf("TEst4\n");
         perror(ll->serialPort);
         exit(-1);
     }
-    printf("TEst3\n");
     struct termios oldtio;
     struct termios newtio;
-    printf("%d\n",fd);
     // Save current port settings
     if (tcgetattr(fd, &oldtio) == -1) {
         perror("tcgetattr");
         exit(-1);
-    }printf("TEst5\n");
+    }
 
     // Clear struct for new port settings
     bzero(&newtio, sizeof(newtio));
@@ -189,18 +195,30 @@ int llopen(linkLayer connectionParameters){
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 30; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
+
+    if(ll->role == TRANSMITTER)
+    {
+      newtio.c_cc[VTIME] = 30; // Inter-character timer unused
+      newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
+    }
+    else
+    {
+      newtio.c_cc[VTIME] = 0;  // Inter-character timer unused
+      newtio.c_cc[VMIN]  = 5;  // Blocking read until 5 chars received
+    }
 
     tcflush(fd, TCIOFLUSH);
-    printf("%d\n",fd);
 
     // Set new port settings
     if (tcsetattr(fd, TCSANOW, &newtio) == -1) {
-        printf("TEst6\n");
         perror("tcsetattr");
         exit(-1);
     }
+
+    printf("New termios structure set\n");
+
+    // Set alarm function handler
+    (void) signal(SIGALRM, atemptHandler); //atemptHandler -> funçao que vai ser envocada
 
     if(ll->role == TRANSMITTER){                //writenoncanonical
         do{
@@ -212,12 +230,12 @@ int llopen(linkLayer connectionParameters){
                 for (int i = 0; i < count; i++){
                     printf("%02X ", buf[i]);
                 }
-                
+
                 int bytes = write(fd, buf, count);
-                
+
                 alarm(3);  // Set alarm to be triggered in 3s
                 atemptStart = TRUE;
-                
+
                 printf("\nSET Frame Sent\n");
                 printf("%d bytes written\n", bytes);
                 printf("Waiting for UA\n");
@@ -225,12 +243,14 @@ int llopen(linkLayer connectionParameters){
                 while (STOP == FALSE){
                     // VTIME = 30 para 3s e VMIN = 0 para incluir a possibilidade de nao receber nada
                     // Alarm vai ter prevalencia q VTIME????
+
                     int bytes = read(fd, buf, count);
 
                     for (int i = 0; i < count; i++){
                         if(checksum != -1){
                             printf("%02X ", buf[i]);
                             statemachine(buf[i]);
+                            printf("TESTE ");
                         }
                     }
 
@@ -239,22 +259,22 @@ int llopen(linkLayer connectionParameters){
                         printf("UA Frame Received Sucessfully\n");
                         alarm(0); //desativa o alarme
                         printf("End reception\n");
+                        return_check = 1;
                     }
                     STOP = TRUE;
-                    return_check = 1;
                 }
-            }   
+            }
         // codigo fica aqui preso a espera do 3s do alarme
         }while((state != 5) && (atemptCount < 4));
     }else{                                                      //noncanonical
-        char buf[MAX_PAYLOAD_SIZE];                                     
+        char buf[MAX_PAYLOAD_SIZE];
         while (STOP == FALSE){
             // Returns after 5 chars have been input
             int bytes = read(fd, buf, MAX_PAYLOAD_SIZE);
-            
+
             buf[count] = destuffing(buf);
-            printf("%d\n",count);
-            
+            printf("T %d T\n",count);
+
             for (int i = 0; i < count; i++){
                 printf("%02X ", buf[i]);
                 statemachine(buf[i]);
