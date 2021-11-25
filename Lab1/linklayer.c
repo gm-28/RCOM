@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
-#include "defines.h" //ficheiro com os defines
+#include "defines.h"            //ficheiro com os defines
 #include <stdbool.h>
 #include "linklayer.h"
 
@@ -17,14 +17,16 @@ volatile int STOP = FALSE;
 int return_check=-1;           //-1 se falha 1 se não
 int atemptStart = FALSE;
 int atemptCount = 0;
-int state = 0; //estado
+int state = 0;                 //estado
 int checksum = 0;
 bool stuffed;
 int count=0;
 
+//se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110)
+//ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
 unsigned char destuffing(unsigned char* buf)
 {
-  unsigned char tmp_buf[MAX_PAYLOAD_SIZE];                            // se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110) ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
+  unsigned char tmp_buf[MAX_PAYLOAD_SIZE];
 
   for(int i=0;i<MAX_PAYLOAD_SIZE;i++)
   {
