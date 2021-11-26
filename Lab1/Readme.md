@@ -5,6 +5,8 @@ TO-DO:
   -ao fazer rx ele vai sair dar erro e fzr printf pois não temos llread
   
   -ao fazer tx ele vai sair dar erro e fzr printf pois não temos llwrite
+  
+  -como obtemos o C BCC e N(s) e RR(s) das tramas I?????????????
 
 Notas:
 
