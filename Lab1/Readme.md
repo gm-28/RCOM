@@ -18,3 +18,5 @@ Dúvidas:
   
   -perguntar se podemos modificar o linklayer.h para incluir cenas no defines.h ou se podemos ter o defines.h dentro do protocolo folder
   
+  -perguntar sobre o MAX_RETRANSMISSIONS_DEFAULT e TIMEOUT_DEFAULT
+  
