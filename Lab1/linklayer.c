@@ -500,21 +500,22 @@ int llread(char *packet)
       //
       // printf("%d bytes received\n", bytes);
       //
-      // if (checksum == 2){
-      //     printf("SET Frame Received Sucessfully\n");
-      //     unsigned char buf[MAX_PAYLOAD_SIZE] = {FLAG, A, C2, BCC2, FLAG};
-      //
-      //     for (int i = 0; i < count; i++){
-      //       //printf("%02X ", buf[i]);
-      //     }
-      //
-      //     int bytes = write(fd, buf, count);
-      //     printf("\nUA Frame Sent\n");
-      //     //printf("%d bytes written\n", bytes);
-      //     printf("End reception\n");
-             STOP = TRUE;
-      //     return_check = bytes; //Return number of chars read
-      //   }
+      if (checksum == 2)
+      {
+          printf("Data Frame Received Sucessfully\n");
+          //unsigned char buf[MAX_PAYLOAD_SIZE] = {FLAG, A, C2, BCC2, FLAG};
+
+          for (int i = 0; i < count; i++)
+          {
+            printf("%02X ", buf[i]);
+          }
+
+          int bytes = write(fd, buf, count);
+          printf("\nACK Frame Sent\n");
+          printf("%d bytes written\n", bytes);
+          STOP = TRUE;
+          return_check = bytes; //Return number of chars read
+        }
     }
     return return_check;
 }
