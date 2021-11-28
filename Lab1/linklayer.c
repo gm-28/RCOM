@@ -14,7 +14,7 @@
 linkLayer *ll;
 
 volatile int STOP = FALSE;
-int return_check=-1;           //-1 se falha 1 se não
+int return_check = -1;           //-1 se falha 1 se não
 int atemptStart = FALSE;
 int atemptCount = 0;           //tentativas
 int state = 0;                 //estado
@@ -562,7 +562,7 @@ int llread(char *packet)
           datasize++;
         }
       }
-      char bcc2=packet[datasize];
+      char bcc2 = packet[datasize];
       datasize--;
       packet = destuffing(packet);
       if(bcc2 == check_bcc2(packet,datasize))
