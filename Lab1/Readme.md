@@ -1,12 +1,12 @@
 Repositório código Lab1
 
 TO-DO:
-
-  -ao fazer rx ele vai sair dar erro e fzr printf pois não temos llread
-  
-  -ao fazer tx ele vai sair dar erro e fzr printf pois não temos llwrite
-  
-  -como obtemos o C BCC e N(s) e RR(s) das tramas I?????????????
+ 
+  -caso haja erros?
+ 
+  -como obtemos o C , N(s) e RR(s) das tramas I ?????????????
+ 
+  -llclose().
 
 Notas:
 
@@ -16,6 +16,10 @@ Notas:
   
 Dúvidas:
 
+  -return llwrite e llread?
+  
+  -como obtemos o C , N(s) e RR(s) das tramas I ?????????????
+  
   -falar stor -> com noise ocorre problema semelhante ao da aula / penguin no sitio errado perguntar stor -> erro do invalid argument
   
   -perguntar se podemos modificar o linklayer.h para incluir cenas no defines.h ou se podemos ter o defines.h dentro do protocolo folder
