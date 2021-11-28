@@ -21,70 +21,64 @@ int state = 0;                 //estado
 int type = 0;                  //tipo de trama
 int checksum = 0;
 bool stuffed;
-int count=0;
+int datasize=0;
+int fd;
+
+
+char check_bcc2(char buf[],int bufsize){
+  char bcc2=buf[0];
+
+  for(int i=1;i<bufsize;i++){
+    bcc2 ^=buf[i];
+  }
+  
+  return bcc2;
+}
+
 
 //se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110)
 //ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
 unsigned char destuffing(unsigned char* buf)
 {
-  unsigned char tmp_buf[MAX_PAYLOAD_SIZE];
+  unsigned char tmp_buf[datasize];
 
-  for(int i=0;i<MAX_PAYLOAD_SIZE;i++)
+  for(int i=0;i<datasize;i++)
   {
-    if(buf[i]== 0x7d && buf[i++]==0x5e && count != 0)
+    if((buf[i]==0x7d)&&(tmp_buf[i++]=0x5e))
     {
-      tmp_buf[count]=FLAG;
-      count++;
-    }
-    else if(buf[i]==FLAG && count != 0)
+      tmp_buf[i]=FLAG;
+    }else
     {
-      tmp_buf[count]=FLAG;
-      count++;
-      break;
-    }
-    else
-    {
-      tmp_buf[count]=buf[i];
-      count++;
+      tmp_buf[i]=buf[i];
     }
   }
+
   return *tmp_buf;
 }
 
 //obj: se a FLAG aparecer em A OU C fazer stuffing e retornar true caso ocorra stuffing e false caso contrario
 //se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110)
 //ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
+//unsigned char stuffing (unsigned char* buf,int buf_size)
 unsigned char stuffing (unsigned char* buf)
 {
   unsigned char tmp_buf[MAX_PAYLOAD_SIZE];
 
   for(int i=0;i<MAX_PAYLOAD_SIZE;i++)
   {
-    if(buf[i]==FLAG && count != 0)
+    if(buf[i]==FLAG)
     {
-      count++;
-      if(!checksum)
-      {
-        tmp_buf[count]=0x7d;
-        count++;
-        tmp_buf[count]=0x5e;
-      }
-      else
-      {
-        tmp_buf[count]=FLAG;
-        break;
-      }
+      tmp_buf[i]=0x7d;
+      i++;
+      tmp_buf[i]=0x5e;
     }
     else
     {
-      tmp_buf[count]=buf[i];
-      count++;
-      if(buf[i] == BCC1)
-      {
-        checksum=1;
-      }
+      tmp_buf[i]=buf[i];
     }
+    datasize=i;
   }
+
   return *tmp_buf;
 }
 
@@ -95,7 +89,6 @@ void atemptHandler(int signal)
     atemptStart = FALSE; //se não ele não entra no ciclo while de novo
     STOP = FALSE; // se não ele não entra no ciclo while de novo
     checksum = 0;
-    count=0;
     if (atemptCount > MAX_RETRANSMISSIONS_DEFAULT)
     {
         printf("Dropping Connection\n");
@@ -116,89 +109,89 @@ void errorcheck(int s)
 void statemachine(unsigned char buf, int type)
 {
   //SET & UA Frames
-  if (type == 1)
+
+  switch (state)
   {
-    switch (state)
-    {
-        case 0: //start
-          if (buf == FLAG)
-          {
-            state = 1;
-            checksum = 0;
-            //printf("FLAG1 received\n");
-          }
-          else
-          {
-            errorcheck(state);
-          }
-          break;
-        case 1: //flag
-          if (buf == A)
-          {
-            state = 2;
-            checksum = 0;
-            //printf("A received\n");
-          }
-          else if (buf == FLAG)
-          {
-            state = 1;
-            //printf("FLAG received\n");
-            //efetuar aqui o bit stuffing?
-            errorcheck(state);
-          }
-          else
-          {
-            errorcheck(state);
-          }
-          break;
-        case 2: //A
-          if ((buf == C2) && (ll->role == TRANSMITTER))
-          {
-            state = 3;
-            checksum = 0;
-            //printf("C2 received\n");
-            checksum++;
-          }
-          else if ((buf == C1) && (ll->role == RECEIVER))
-          {
-            state = 3;
-            //printf("C1 received\n");
-            checksum++;
-          }
-          else if (buf == FLAG)
-          {
-            state = 1;
-            //printf("FLAG received\n");
-            errorcheck(state);
-          }
-          else
-          {
-            errorcheck(state);
-          }
-          break;
-        case 3: //C
-          if ((buf == (BCC2)))
-          {
-            state = 4;
-            //printf("BCC2 received\n");
-          }
-          else if ((buf == (BCC1)))
-          {
-            state = 4;
-            //printf("BCC1 received\n");
-          }
-          else if (buf == FLAG)
-          {
-            state = 1;
-            //printf("FLAG received\n");
-            errorcheck(state);
-          }
-          else
-          {
-            errorcheck(state);
-          }
-          break;
-        case 4: //BCC
+      case 0: //start
+        if (buf == FLAG)
+        {
+          state = 1;
+          checksum = 0;
+          //printf("FLAG1 received\n");
+        }
+        else
+        {
+          errorcheck(state);
+        }
+        break;
+      case 1: //flag
+        if (buf == A)
+        {
+          state = 2;
+          checksum = 0;
+          //printf("A received\n");
+        }
+        else if (buf == FLAG)
+        {
+          state = 1;
+          //printf("FLAG received\n");
+          //efetuar aqui o bit stuffing?
+          errorcheck(state);
+        }
+        else
+        {
+          errorcheck(state);
+        }
+        break;
+      case 2: //A
+        if ((buf == C2) && (ll->role == TRANSMITTER))
+        {
+          state = 3;
+          checksum = 0;
+          //printf("C2 received\n");
+          checksum++;
+        }
+        else if ((buf == C1) && (ll->role == RECEIVER))
+        {
+          state = 3;
+          //printf("C1 received\n");
+          checksum++;
+        }
+        else if (buf == FLAG)
+        {
+          state = 1;
+          //printf("FLAG received\n");
+          errorcheck(state);
+        }
+        else
+        {
+          errorcheck(state);
+        }
+        break;
+      case 3: //C
+        if ((buf == (BCC2)))
+        {
+          state = 4;
+          //printf("BCC2 received\n");
+        }
+        else if ((buf == (BCC1)))
+        {
+          state = 4;
+          //printf("BCC1 received\n");
+        }
+        else if (buf == FLAG)
+        {
+          state = 1;
+          //printf("FLAG received\n");
+          errorcheck(state);
+        }
+        else
+        {
+          errorcheck(state);
+        }
+        break;
+      case 4: //BCC
+        if (type == 1){
           if (buf == FLAG)
           {
             state = 5;
@@ -209,119 +202,117 @@ void statemachine(unsigned char buf, int type)
           {
             errorcheck(state);
           }
-          break;
-        case 5: //End
-          //state = 0;
-          break;
-      }
-  }
-  //Data Frames stor tinha falado numa funçao para o calculo do BCC??????
-  else if (type == 2)
-  {
-    switch (state)
-    {
-        case 0: //start
+        }
+        else if (type == 2){
           if (buf == FLAG)
-          {
-            state = 1;
-            checksum = 0;
-            printf("FLAG1 received\n");
-          }
-          else
-          {
-            errorcheck(state);
-          }
+            {
+              state = 5;
+              printf("FLAG2 received\n");
+              checksum++;
+            }
+        }
           break;
-        case 1: //flag
-          if (buf == A)
-          {
-            state = 2;
-            checksum = 0;
-            printf("A received\n");
-          }
-          else if (buf == FLAG)
-          {
-            state = 1;
-            printf("FLAG received\n");
-            //efetuar aqui o bit stuffing?
-            errorcheck(state);
-          }
-          else
-          {
-            errorcheck(state);
-          }
-          break;
-        case 2: //A
-          if ((buf == C2) && (ll->role == TRANSMITTER))
-          {
-            state = 3;
-            checksum = 0;
-            printf("C2 received\n");
-            checksum++;
-          }
-          else if ((buf == C1) && (ll->role == RECEIVER))
-          {
-            state = 3;
-            printf("C1 received\n");
-            checksum++;
-          }
-          else if (buf == FLAG)
-          {
-            state = 1;
-            printf("FLAG received\n");
-            errorcheck(state);
-          }
-          else
-          {
-            errorcheck(state);
-          }
-          break;
-        case 3: //C
-          if ((buf == (BCC2)))
-          {
-            state = 4;
-            printf("BCC2 received\n");
-          }
-          else if ((buf == (BCC1)))
-          {
-            state = 4;
-            printf("BCC1 received\n");
-          }
-          else if (buf == FLAG)
-          {
-            state = 1;
-            printf("FLAG received\n");
-            errorcheck(state);
-          }
-          else
-          {
-            errorcheck(state);
-          }
-          break;
-        case 4:
-          if (/* condition */)
-          {
-            state = 5;
-          }
-          break;
-        case 5: //BCC
-          if (buf == FLAG)
-          {
-            state = 6;
-            printf("FLAG2 received\n");
-            checksum++;
-          }
-          else
-          {
-            errorcheck(state);
-          }
-          break;
-        case 6: //End
-          break;
-      }
-  }
-  //Disc Frames etc....
+      case 5: //End
+        break;
+    }
 }
+  // //Data Frames stor tinha falado numa funçao para o calculo do BCC??????
+  // else if (type == 2)
+  // {
+  //   switch (state)
+  //   {
+  //       case 0: //start
+  //         if (buf == FLAG)
+  //         {
+  //           state = 1;
+  //           checksum = 0;
+  //           printf("FLAG1 received\n");
+  //         }
+  //         else
+  //         {
+  //           errorcheck(state);
+  //         }
+  //         break;
+  //       case 1: //flag
+  //         if (buf == A)
+  //         {
+  //           state = 2;
+  //           checksum = 0;
+  //           printf("A received\n");
+  //         }
+  //         else if (buf == FLAG)
+  //         {
+  //           state = 1;
+  //           printf("FLAG received\n");
+  //           //efetuar aqui o bit stuffing?
+  //           errorcheck(state);
+  //         }
+  //         else
+  //         {
+  //           errorcheck(state);
+  //         }
+  //         break;
+  //       case 2: //A
+  //         if ((buf == C2) && (ll->role == TRANSMITTER))
+  //         {
+  //           state = 3;
+  //           checksum = 0;
+  //           printf("C2 received\n");
+  //           checksum++;
+  //         }
+  //         else if ((buf == C1) && (ll->role == RECEIVER))
+  //         {
+  //           state = 3;
+  //           printf("C1 received\n");
+  //           checksum++;
+  //         }
+  //         else if (buf == FLAG)
+  //         {
+  //           state = 1;
+  //           printf("FLAG received\n");
+  //           errorcheck(state);
+  //         }
+  //         else
+  //         {
+  //           errorcheck(state);
+  //         }
+  //         break;
+  //       case 3: //C
+  //         if ((buf == (BCC2)))
+  //         {
+  //           state = 4;
+  //           printf("BCC2 received\n");
+  //         }
+  //         else if ((buf == (BCC1)))
+  //         {
+  //           state = 4;
+  //           printf("BCC1 received\n");
+  //         }
+  //         else if (buf == FLAG)
+  //         {
+  //           state = 1;
+  //           printf("FLAG received\n");
+  //           errorcheck(state);
+  //         }
+  //         else
+  //         {
+  //           errorcheck(state);
+  //         }
+  //         break;
+  //       case 4://data
+  //         if (buf == FLAG)
+  //         {
+  //           state = 5;
+  //           printf("FLAG2 received\n");
+  //           checksum++;
+  //         }
+  //         break;
+  //       case 5: //End
+  //         break;
+  //     }
+  // }
+  //Disc Frames etc....
+//}
 
 // Open a connection using the "port" parameters defined in struct linkLayer.
 // Return "1" on success or "-1" on error.
@@ -334,7 +325,7 @@ int llopen(linkLayer connectionParameters)
     ll->timeOut = connectionParameters.timeOut;
     sprintf(ll->serialPort,"%s",connectionParameters.serialPort);
 
-    int fd = open(ll->serialPort, O_RDWR | O_NOCTTY );
+    fd = open(ll->serialPort, O_RDWR | O_NOCTTY );
     if (fd < 0)
     {
         perror(ll->serialPort);
@@ -390,15 +381,14 @@ int llopen(linkLayer connectionParameters)
             if (atemptStart == FALSE)
             {
                 // Create frame to send
-                unsigned char buf[MAX_PAYLOAD_SIZE] = {FLAG, A, C1, BCC1, FLAG};
-                buf[count]=stuffing(buf);
+                unsigned char buf[TYPE1_SIZE] = {FLAG, A, C1, BCC1, FLAG};
 
-                for (int i = 0; i < count; i++)
+                for (int i = 0; i < TYPE1_SIZE; i++)
                 {
                     printf("%02X ", buf[i]);
                 }
 
-                int bytes = write(fd, buf, count);
+                int bytes = write(fd, buf, TYPE1_SIZE);
 
                 alarm(TIMEOUT_DEFAULT);  // Set alarm to be triggered in 4s
                 atemptStart = TRUE;
@@ -409,9 +399,9 @@ int llopen(linkLayer connectionParameters)
 
                 while (STOP == FALSE)
                 {
-                    int bytes = read(fd, buf, count);
+                    int bytes = read(fd, buf, TYPE1_SIZE);
 
-                    for (int i = 0; i < count; i++)
+                    for (int i = 0; i < TYPE1_SIZE; i++)
                     {
                         if(checksum != -1)
                         {
@@ -436,14 +426,13 @@ int llopen(linkLayer connectionParameters)
     }
     else if(ll->role == RECEIVER)
     {
-        unsigned char buf[MAX_PAYLOAD_SIZE];
+        unsigned char buf[TYPE1_SIZE];
         while (STOP == FALSE)
         {
             // Returns after 5 chars have been input
-            int bytes = read(fd, buf, MAX_PAYLOAD_SIZE);
-            buf[count] = destuffing(buf);
-
-            for (int i = 0; i < count; i++)
+            int bytes = read(fd, buf, TYPE1_SIZE);
+            
+            for (int i = 0; i < TYPE1_SIZE; i++)
             {
               printf("%02X ", buf[i]);
               statemachine(buf[i],type);
@@ -454,14 +443,14 @@ int llopen(linkLayer connectionParameters)
             if (checksum == 2)
             {
                 printf("SET Frame Received Sucessfully\n");
-                unsigned char buf[MAX_PAYLOAD_SIZE] = {FLAG, A, C2, BCC2, FLAG};
+                unsigned char buf[TYPE1_SIZE] = {FLAG, A, C2, BCC2, FLAG};
 
-                for (int i = 0; i < count; i++)
+                for (int i = 0; i < TYPE1_SIZE; i++)
                 {
                   printf("%02X ", buf[i]);
                 }
 
-                int bytes = write(fd, buf, count);
+                int bytes = write(fd, buf, TYPE1_SIZE);
                 printf("\nUA Frame Sent\n");
                 printf("%d bytes written\n", bytes);
                 printf("Ending rx setup\n");
@@ -476,48 +465,129 @@ int llopen(linkLayer connectionParameters)
 
 // Send data in buf with size bufSize.
 // Return number of chars written, or "-1" on error.
-int llwrite(char *buf, int bufSize){}
+int llwrite(char *buf, int bufSize){
+  return_check=-1;
+  type=1;
+  char *data = (char *)malloc(bufSize);
+  data=stuffing(buf);
+  // Create frame to send
+
+  char frame[MAX_PAYLOAD_SIZE+6];
+  int framesize=0;
+  frame[0]=FLAG;
+  frame[1]=A;
+  frame[2]=C;
+  frame[3]=BCC;
+  for (int i = 0; i < datasize; i++)
+  {
+    frame[i+4]=data[i];
+    framesize=i+4;
+    printf("%02X ", frame[i+4]);
+  }
+  framesize++;
+  frame[framesize]=check_bcc2(data,datasize);
+  framesize++;
+  frame[framesize]=FLAG;
+
+  do
+  {
+    if (atemptStart == FALSE)
+    {
+      return_check = write(fd, frame, framesize);
+      //return check caso read falhe??
+
+      alarm(TIMEOUT_DEFAULT);  // Set alarm to be triggered in 4s
+      atemptStart = TRUE;
+
+      printf("\nSET Frame Sent\n");
+      printf("%d bytes written\n",return_check);
+      printf("Waiting for UA\n");
+
+      while (STOP == FALSE)
+      {
+        int bytes = read(fd, buf, TYPE1_SIZE);
+        for (int i = 0; i < TYPE1_SIZE; i++)
+        {
+          if(checksum != -1)
+          {
+            printf("%02X ", buf[i]);
+            statemachine(buf[i],type);
+          }
+        }
+
+        if (checksum == 2)
+        {
+          printf("%d bytes received\n", bytes);
+          printf("UA Frame Received Sucessfully\n");
+          alarm(0); //desativa o alarme
+          printf("Ending tx setup\n");
+        }
+        STOP = TRUE;
+      }
+    }
+  // codigo fica aqui preso a espera do 4s do alarme
+  }while((state != 5) && (atemptCount < (MAX_RETRANSMISSIONS_DEFAULT+1)));
+
+  return return_check;
+}
 
 // Receive data in packet.
 // Return number of chars read, or "-1" on error.
 int llread(char *packet)
 {
+  char frame_data[MAX_PAYLOAD_SIZE+6];
+  return_check=-1;
   type = 2;
   STOP = FALSE; //fzr um reset no final do llopen?
-
+  int bytes_read=0;
+  int check;
   while (STOP == FALSE)
   {
-      // //Returns after 5 chars have been input
-      // int bytes = read(fd, packet, MAX_PAYLOAD_SIZE);
-      // packet[count] = destuffing(packet);
-      //
-
-      // for (int i = 0; i < MAX_PAYLOAD_SIZE; i++)
-      // {
-        //printf("%02X ", packet[i]);
-        //statemachine(packet[1],type);
-      //}
-      //
-      // printf("%d bytes received\n", bytes);
-      //
-      if (checksum == 2)
-      {
-          printf("Data Frame Received Sucessfully\n");
-          //unsigned char buf[MAX_PAYLOAD_SIZE] = {FLAG, A, C2, BCC2, FLAG};
-
-          for (int i = 0; i < count; i++)
-          {
-            printf("%02X ", buf[i]);
-          }
-
-          int bytes = write(fd, buf, count);
-          printf("\nACK Frame Sent\n");
-          printf("%d bytes written\n", bytes);
-          STOP = TRUE;
-          return_check = bytes; //Return number of chars read
-        }
+    while (bytes_read > 0)
+    {
+      bytes_read++;
+      check =read(fd,frame_data[bytes_read],1);
     }
-    return return_check;
+    return_check=bytes_read;
+    //return check em erro de write????
+
+    for (int i = 0; i < bytes_read; i++)
+    {
+      printf("%02X ", frame_data[i]);
+      statemachine(frame_data[i],type);
+      if(state==4)
+      {
+        packet[datasize]=frame_data[i];
+        datasize++;
+      }
+    }
+    char bcc2=packet[datasize];
+    datasize--;
+    packet=destuffing(packet);
+    if(bcc2==check_bcc2(packet,datasize)){
+      return_check=-1;
+      checksum=-1;
+    }
+  
+    printf("%d bytes received\n", bytes_read);
+    
+    if (checksum == 2)
+    {
+      printf("Data Frame Received Sucessfully\n");
+      unsigned char buf[TYPE1_SIZE] = {FLAG, A, C, BCC, FLAG};
+
+      for (int i = 0; i < TYPE1_SIZE; i++)
+      {
+        printf("%02X ", buf[i]);
+      }
+
+      int bytes = write(fd, buf, TYPE1_SIZE);
+      printf("\nACK Frame Sent\n");
+      printf("%d bytes written\n", bytes);
+      STOP = TRUE;
+    }
+  }
+  return return_check;
 }
 
 // Close previously opened connection.
