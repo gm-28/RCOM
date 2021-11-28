@@ -218,8 +218,7 @@ void statemachine(unsigned char buf, int type)
   //Data Frames stor tinha falado numa funçao para o calculo do BCC??????
   else if (type == 2)
   {
-    printf("hello\n");
-    /*switch (state)
+    switch (state)
     {
         case 0: //start
           if (buf == FLAG)
@@ -243,7 +242,7 @@ void statemachine(unsigned char buf, int type)
           else if (buf == FLAG)
           {
             state = 1;
-            //printf("FLAG received\n");
+            printf("FLAG received\n");
             //efetuar aqui o bit stuffing?
             errorcheck(state);
           }
@@ -257,19 +256,19 @@ void statemachine(unsigned char buf, int type)
           {
             state = 3;
             checksum = 0;
-            //printf("C2 received\n");
+            printf("C2 received\n");
             checksum++;
           }
           else if ((buf == C1) && (ll->role == RECEIVER))
           {
             state = 3;
-            //printf("C1 received\n");
+            printf("C1 received\n");
             checksum++;
           }
           else if (buf == FLAG)
           {
             state = 1;
-            //printf("FLAG received\n");
+            printf("FLAG received\n");
             errorcheck(state);
           }
           else
@@ -281,17 +280,17 @@ void statemachine(unsigned char buf, int type)
           if ((buf == (BCC2)))
           {
             state = 4;
-            //printf("BCC2 received\n");
+            printf("BCC2 received\n");
           }
           else if ((buf == (BCC1)))
           {
             state = 4;
-            //printf("BCC1 received\n");
+            printf("BCC1 received\n");
           }
           else if (buf == FLAG)
           {
             state = 1;
-            //printf("FLAG received\n");
+            printf("FLAG received\n");
             errorcheck(state);
           }
           else
@@ -299,11 +298,17 @@ void statemachine(unsigned char buf, int type)
             errorcheck(state);
           }
           break;
-        case 4: //BCC
-          if (buf == FLAG)
+        case 4:
+          if (/* condition */)
           {
             state = 5;
-            //printf("FLAG2 received\n");
+          }
+          break;
+        case 5: //BCC
+          if (buf == FLAG)
+          {
+            state = 6;
+            printf("FLAG2 received\n");
             checksum++;
           }
           else
@@ -311,9 +316,9 @@ void statemachine(unsigned char buf, int type)
             errorcheck(state);
           }
           break;
-        case 5: //End
+        case 6: //End
           break;
-      }*/
+      }
   }
   //Disc Frames etc....
 }
@@ -486,8 +491,6 @@ int llread(char *packet)
       // int bytes = read(fd, packet, MAX_PAYLOAD_SIZE);
       // packet[count] = destuffing(packet);
       //
-
-      statemachine(packet[1],type);//teste
 
       // for (int i = 0; i < MAX_PAYLOAD_SIZE; i++)
       // {
