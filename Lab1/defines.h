@@ -13,3 +13,5 @@
 #define C2 0X07
 //XOR(A,C) -> 2
 #define BCC2 (A^C2)
+//Supervision and Unnumbered Frames size
+#define TYPE1_SIZE 5
