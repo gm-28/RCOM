@@ -6,11 +6,9 @@ TO-DO:
  
   -como obtemos o C , N(s) e RR(s) das tramas I ?????????????
  
-  -llclose().
+  -llclose() -> statistics perguntar stor? e se llwrite termina antes do llread receber UA e se llread tem de ter timeout
 
 Notas:
-
-  -llwrite semelhante ao llclose (mandar disc->disc->UA)
   
   -ter em atençao a quando llwrite e llread retornam, não podemos ter dessincronização
   
