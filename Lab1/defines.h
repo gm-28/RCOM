@@ -26,3 +26,8 @@
 #define C_RR 0X00
 //XOR(A,C) -> X
 #define BCC_RR (A^C_RR)
+
+//cDISC
+#define C_DISC 0X0B
+
+#define BCC_DISC (A^C_DISC)

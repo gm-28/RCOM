@@ -37,31 +37,31 @@ char check_bcc2(char buf[],int bufsize)
 
 //se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110)
 //ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
-unsigned char destuffing(unsigned char* buf)
+char destuffing(char* buf)
 {
-    unsigned char tmp_buf[datasize];
+  char tmp_buf[datasize];
 
-    for(int i = 0; i < datasize; i++)
+  for(int i = 0; i < datasize; i++)
+  {
+    if((buf[i] == 0x7d) && (tmp_buf[i++] == 0x5e))
     {
-      if((buf[i] == 0x7d) && (tmp_buf[i++] == 0x5e))
-      {
-        tmp_buf[i] = FLAG;
-      }
-      else
-      {
-        tmp_buf[i] = buf[i];
-      }
+      tmp_buf[i] = FLAG;
     }
-    return *tmp_buf;
+    else
+    {
+      tmp_buf[i] = buf[i];
+    }
+  }
+  return tmp_buf;
 }
 
 //obj: se a FLAG aparecer em A OU C fazer stuffing e retornar true caso ocorra stuffing e false caso contrario
 //se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110)
 //ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
 //unsigned char stuffing (unsigned char* buf,int buf_size)
-unsigned char stuffing (unsigned char* buf)
+char stuffing (char* buf)
 {
-    unsigned char tmp_buf[MAX_PAYLOAD_SIZE];
+    char tmp_buf[MAX_PAYLOAD_SIZE];
 
     for(int i = 0; i < MAX_PAYLOAD_SIZE; i++)
     {
@@ -77,7 +77,7 @@ unsigned char stuffing (unsigned char* buf)
       }
       datasize = i;
     }
-    return *tmp_buf;
+    return tmp_buf;
 }
 
 //mudar o timeout usando as flags no linklayer.h????????
@@ -141,7 +141,7 @@ void statemachine(unsigned char buf, int type)
           }
           break;
         case 2: //A
-          if ((buf == C2) && (ll->role == TRANSMITTER))
+          if ((buf == C2)) //&& (ll->role == TRANSMITTER))
           {
             state = 3;
             checksum = 0;
@@ -153,6 +153,24 @@ void statemachine(unsigned char buf, int type)
             state = 3;
             //printf("C1 received\n");
             checksum++;
+          }
+          else if(buf == C_I)
+          {
+            state = 3;
+            //printf("CI received\n");
+            checksum++;//VERFICAR CHECKSUM
+          }
+          else if(buf == C_RR)
+          {
+            state = 3;
+            //printf("CRR received\n");
+            checksum++;//VERFICAR CHECKSUM
+          }
+          else if(buf == C_DISC)
+          {
+            state = 3;
+            //printf("C_DISC received\n");
+            checksum++;//VERFICAR CHECKSUM
           }
           else if (buf == FLAG)
           {
@@ -175,6 +193,21 @@ void statemachine(unsigned char buf, int type)
           {
             state = 4;
             //printf("BCC1 received\n");
+          }
+          else if ((buf == (BCC_I)))
+          {
+            state = 4;
+            //printf("BCC_I received\n");
+          }
+          else if ((buf == (BCC_RR)))
+          {
+            state = 4;
+            //printf("BCC_RR received\n");
+          }
+          else if ((buf == (BCC_DISC)))
+          {
+            state = 4;
+            //printf("BCC_DISC received\n");
           }
           else if (buf == FLAG)
           {
@@ -540,13 +573,11 @@ int llread(char *packet)
     return_check = -1;
     type = 2;
     int bytes_read = 0;
-    int check;
     while (STOP == FALSE)
     {
       while (bytes_read > 0)
       {
-        bytes_read++;
-        check = read(fd,frame_data[bytes_read],1);
+        bytes_read += read(fd,frame_data,1);
         //check n é usado em nada??????????
       }
       return_check = bytes_read;
@@ -607,7 +638,7 @@ int llclose(int showStatistics)
             if (atemptStart == FALSE)
             {
                 // Create frame to send
-                unsigned char buf[TYPE1_SIZE] = {FLAG, A, C1, BCC1, FLAG};
+                unsigned char buf[TYPE1_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
 
                 for (int i = 0; i < TYPE1_SIZE; i++)
                 {
@@ -619,7 +650,7 @@ int llclose(int showStatistics)
                 alarm(ll->timeOut);  // Set alarm to be triggered in 3s
                 atemptStart = TRUE;
 
-                printf("\nSET Frame Sent\n");
+                printf("\nDISC Frame Sent\n");
                 printf("%d bytes written\n", bytes);
                 printf("Waiting for UA\n");
 
@@ -639,13 +670,27 @@ int llclose(int showStatistics)
                     if (checksum == 2)
                     {
                         printf("%d bytes received\n", bytes);
-                        printf("UA Frame Received Sucessfully\n");
+                        printf("DISC Frame Received Sucessfully\n");
                         alarm(0); //desativa o alarme
-                        printf("Ending tx setup\n");
-                        return_check = 1;
                     }
                     STOP = TRUE;
                 }
+            }
+            if (atemptStart == FALSE)//teste
+            {
+              unsigned char buf[TYPE1_SIZE] = {FLAG, A, C2, BCC2, FLAG};
+              for (int i = 0; i < TYPE1_SIZE; i++)
+              {
+                  printf("%02X ", buf[i]);
+              }
+
+              int bytes = write(fd, buf, TYPE1_SIZE);
+              //alarm(ll->timeOut);  // Set alarm to be triggered in 3s
+              atemptStart = TRUE;
+
+              printf("\nUA Frame Sent\n");
+              printf("%d bytes written\n", bytes);
+              return_check = 1;
             }
         // codigo fica aqui preso a espera do 3s do alarme
       }while((state != 5) && (atemptCount < (ll->numTries+1)));
@@ -668,8 +713,8 @@ int llclose(int showStatistics)
 
             if (checksum == 2)
             {
-                printf("SET Frame Received Sucessfully\n");
-                unsigned char buf[TYPE1_SIZE] = {FLAG, A, C2, BCC2, FLAG};
+                printf("DISC Frame Received Sucessfully\n");
+                unsigned char buf[TYPE1_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
 
                 for (int i = 0; i < TYPE1_SIZE; i++)
                 {
@@ -677,21 +722,33 @@ int llclose(int showStatistics)
                 }
 
                 int bytes = write(fd, buf, TYPE1_SIZE);
-                printf("\nUA Frame Sent\n");
+                printf("\nDISC Frame Sent\n");
                 printf("%d bytes written\n", bytes);
-                printf("Ending rx setup\n");
                 STOP = TRUE;
+            }
+            bytes = read(fd, buf, TYPE1_SIZE);
+
+            for (int i = 0; i < TYPE1_SIZE; i++)
+            {
+              printf("%02X ", buf[i]);
+              statemachine(buf[i],type);
+            }
+
+            printf("%d bytes received\n", bytes);
+
+            if (checksum == 2)
+            {
+                printf("DISC Frame Received Sucessfully\n");
                 return_check = 1;
             }
         }
     }
-    //llclose maybe
-    // Restore the old port settings
-    // if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
-    //{
-    //     perror("tcsetattr");
-    //     exit(-1);
+    //Restore the old port settings perguntar stor
+    //if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
+    // {
+    //      perror("tcsetattr");
+    //      exit(-1);
     // }
-    //close(fd);
+    close(fd);
     return return_check;
 }
