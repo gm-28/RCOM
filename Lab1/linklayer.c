@@ -374,7 +374,7 @@ int llopen(linkLayer connectionParameters)
 
     // Clear struct for new port settings
     bzero(&newtio, sizeof(newtio));
-    newtio.c_cflag = ll->baudRate | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = BAUDRATE_DEFAULT | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
     newtio.c_lflag = 0;
@@ -493,6 +493,7 @@ int llopen(linkLayer connectionParameters)
     }
     state = 0;          //reset da maquina de estados
     STOP = FALSE;       //reset
+    atemptStart = FALSE;
     return return_check;
 }
 
@@ -504,7 +505,7 @@ int llwrite(char *buf, int bufSize)
     type = 1;
     char *data = (char *)malloc(bufSize);
     data = stuffing(buf);
-
+    
     // Create frame to send
     char frame[MAX_PAYLOAD_SIZE + 6];
     int framesize = 0;
@@ -512,7 +513,7 @@ int llwrite(char *buf, int bufSize)
     frame[1] = A;
     frame[2] = C_I;
     frame[3] = BCC_I;
-    for (int i = 0; i < datasize; i++)
+    for (int i = 0; i < bufSize; i++)
     {
       frame[i+4] = data[i];
       framesize = i+4;
@@ -569,17 +570,23 @@ int llwrite(char *buf, int bufSize)
 // Return number of chars read, or "-1" on error.
 int llread(char *packet)
 {
-    char frame_data[MAX_PAYLOAD_SIZE + 6];
+  char frame_data[MAX_PAYLOAD_SIZE + 6];
     return_check = -1;
     type = 2;
     int bytes_read = 0;
+    int check=1;
+    char tmp_buf[1];
     while (STOP == FALSE)
     {
-      while (bytes_read > 0)
+      while (check > 0)
       {
-        bytes_read += read(fd,frame_data,1);
-        //check n é usado em nada??????????
+        printf("ola\n");
+        check = read(fd,tmp_buf,1);
+        frame_data[bytes_read]=tmp_buf[0];
+        bytes_read ++;
+        //check >0 enquanto le
       }
+              printf("ola\n");
       return_check = bytes_read;
       //return check em erro de write????
 
