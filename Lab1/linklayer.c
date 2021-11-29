@@ -598,6 +598,93 @@ int llread(char *packet)
 int llclose(int showStatistics)
 {
     return_check = -1;
+    type = 1;
+
+    if(ll->role == TRANSMITTER)
+    {
+        do
+        {
+            if (atemptStart == FALSE)
+            {
+                // Create frame to send
+                unsigned char buf[TYPE1_SIZE] = {FLAG, A, C1, BCC1, FLAG};
+
+                for (int i = 0; i < TYPE1_SIZE; i++)
+                {
+                    printf("%02X ", buf[i]);
+                }
+
+                int bytes = write(fd, buf, TYPE1_SIZE);
+
+                alarm(ll->timeOut);  // Set alarm to be triggered in 3s
+                atemptStart = TRUE;
+
+                printf("\nSET Frame Sent\n");
+                printf("%d bytes written\n", bytes);
+                printf("Waiting for UA\n");
+
+                while (STOP == FALSE)
+                {
+                    int bytes = read(fd, buf, TYPE1_SIZE);
+
+                    for (int i = 0; i < TYPE1_SIZE; i++)
+                    {
+                        if(checksum != -1)
+                        {
+                          printf("%02X ", buf[i]);
+                          statemachine(buf[i],type);
+                        }
+                    }
+
+                    if (checksum == 2)
+                    {
+                        printf("%d bytes received\n", bytes);
+                        printf("UA Frame Received Sucessfully\n");
+                        alarm(0); //desativa o alarme
+                        printf("Ending tx setup\n");
+                        return_check = 1;
+                    }
+                    STOP = TRUE;
+                }
+            }
+        // codigo fica aqui preso a espera do 3s do alarme
+      }while((state != 5) && (atemptCount < (ll->numTries+1)));
+    }
+    else if(ll->role == RECEIVER)
+    {
+        unsigned char buf[TYPE1_SIZE];
+        while (STOP == FALSE)
+        {
+            // Returns after 5 chars have been input
+            int bytes = read(fd, buf, TYPE1_SIZE);
+
+            for (int i = 0; i < TYPE1_SIZE; i++)
+            {
+              printf("%02X ", buf[i]);
+              statemachine(buf[i],type);
+            }
+
+            printf("%d bytes received\n", bytes);
+
+            if (checksum == 2)
+            {
+                printf("SET Frame Received Sucessfully\n");
+                unsigned char buf[TYPE1_SIZE] = {FLAG, A, C2, BCC2, FLAG};
+
+                for (int i = 0; i < TYPE1_SIZE; i++)
+                {
+                  printf("%02X ", buf[i]);
+                }
+
+                int bytes = write(fd, buf, TYPE1_SIZE);
+                printf("\nUA Frame Sent\n");
+                printf("%d bytes written\n", bytes);
+                printf("Ending rx setup\n");
+                STOP = TRUE;
+                return_check = 1;
+            }
+        }
+    }
     //llclose maybe
     // Restore the old port settings
     // if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
