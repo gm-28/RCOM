@@ -13,6 +13,21 @@ TO-DO:
   -REJ só em problemas de dados e de BCC2
   
   -Switch com baud rate
+  
+Valorisation Elements:
+
+   -Random error generation in data frames: Suggestion for each correctly received I frame, simulate at the receiver the occurence of errors in header and data field according to     pre defined and independent probabilities, and proceed as if they were real errors;
+   
+   -REJ implementation;
+   
+   File transmission statistics:
+       -Error recovery for example, close the connection (DISC) re establish it (SET) and restart the process;
+       -Event log (errors);
+       -Number of retransmitted/received I frames, number of time outs, number of sent/received REJ;
+       
+   -slide 26
+   
+   -byte stuffing 7d
 
 Notas:
   
