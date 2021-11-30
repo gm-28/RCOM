@@ -1,8 +1,6 @@
 Repositório código Lab1
 
 ERRO:
-
- -ENVIA E RECEBE UMA TRAMA DIREITA A SEGUNDA VEM COM A ULITMA POSICAÇÃO DA DATA ERRADA E O CALCULO DO BCC2 CORTA!
  
  -Erro se n receber nd no llopen P.S. alarms tao todos comentados para ja
 
