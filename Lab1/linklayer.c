@@ -26,16 +26,19 @@ int N=0;
 char check_bcc2(char buf[],int bufsize)
 {
     char bcc2 = buf[0];
+    printf("buf[0]=%02X \n ",buf[0]);
     for(int i = 1; i < bufsize; i++)
     {
       bcc2 ^= buf[i];
+      printf("buf[%d]=%02X ",i,buf[i]);
+      printf(" bcc2 calculado: %02X \n",bcc2);
     }
     return bcc2;
 }
 
 //se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110)
 //ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
-char destuffing(char buf1,char buf2)
+bool destuffing(char buf1,char buf2)
 {
   return ((buf1 == 0x7d) && (buf2 == 0x5e));
 }
@@ -75,6 +78,7 @@ void errorcheck(int s)
 // pode ser expandida para tratar mais tramas (I, DISC, ...)
 void statemachine(unsigned char buf, int type)
 {
+  printf("BUf %02X \n",buf);
     //SET & UA Frames
     switch (state)
     {
@@ -376,6 +380,12 @@ int llopen(linkLayer connectionParameters)
 // Return number of chars written, or "-1" on error.
 int llwrite(char *buf, int bufSize)
 {
+      printf("-----------------------PACKET-----------------------\n");
+      for(int i=0;i<bufSize;i++){
+        printf("%02X ", buf[i]);
+      }
+      printf("----------------------------------------------------\n");
+      printf("\n");
     state=0;
     return_check = -1;
     type = 1;
@@ -490,7 +500,7 @@ int llread(char *packet)
     int bytes_read = 0;
     int check=0;
     char tmp_buf[1];
-    int bcc2_pos;
+    int bcc2_pos=0;
     int destf_count=0;
     int datasize=0;
 
@@ -517,7 +527,7 @@ int llread(char *packet)
       }
       
       char bcc2;
-
+      int bcc2p;
       //stuffing do bcc2 e verficação da posição do bcc2 para colocar os dados só até ao bcc2(não inclusive)
       bcc2_pos=bytes_read;
       if(destuffing(frame_data[bytes_read-2],frame_data[bytes_read-1]))
@@ -534,7 +544,9 @@ int llread(char *packet)
         printf("bcc2 not stuffed %02X\n",frame_data[bcc2_pos]);
         bcc2 = frame_data[bcc2_pos];
         printf("bcc2 pos : %d \n",bcc2_pos+1);
+        printf("bcc2 pos incrementa?: %d \n",bcc2_pos);
       }
+      bcc2p=bcc2_pos;
       printf("flag? %02X e frame size: %d\n",frame_data[bytes_read],bytes_read+1);
       printf("\n");
       printf("-----------------------Frame-----------------------\n");
@@ -547,33 +559,54 @@ int llread(char *packet)
       printf("tamanho do for(frame): %d \n",bytes_read+1);
       for (int i = 0; i < bytes_read+1; i++)//ir até flag bytesread=pos de flag
       {
+        
+        printf("|FRAME 1 %02X | i %d|", frame_data[i],i);
         statemachine(frame_data[i],type);
-        if((state == 4)&&(i<(bcc2_pos-1)))
+        printf("|FRAME 0 %02X |\n", frame_data[bcc2p-1]);
+        printf("|FRAME 2 %02X | i %d|", frame_data[i],i);
+        int tmp2=i;
+        printf(" BCC2 %02X \n",bcc2);
+        if((state == 4)&&(i>3)&&(frame_data[i]!= bcc2))
         {
-          int tmp=i;//pq i++ incrementa o i 
-          if(destuffing(frame_data[tmp],frame_data[tmp++]))
+          
+          printf("|FRAME 3 %02X | i %d|", frame_data[i],i);
+          //int tmp=i;//pq i++ incrementa o i 
+          if(destuffing(frame_data[i],frame_data[i+1]))
           {
             destf_count++;
-            printf("Does destuffing happen?\n");
+            printf("Does destuffing happen? | %02X |%02X  ",frame_data[i],frame_data[i+1]);
             packet[datasize] = FLAG;
+            // printf("|PACKET %02X |", packet[datasize]);
+            printf("datasize:%d \n  |",datasize);
+            i++;
             datasize++;
             //printf("%02X ", packet[datasize]);
           }
           else
           {
-            packet[datasize]=frame_data[tmp];
-            // printf("|FRAME %02X |", frame_data[i]);
-            //printf("|%02X [%d]|", packet[datasize],datasize);
+            printf("|FRAME 0 %02X |\n", frame_data[bcc2p-1]);
+            //printf("|FRAME %02X | i %d|", frame_data[i],i);
+            packet[datasize]=frame_data[i];
+
+            // printf("|PACKET %02X |", packet[datasize]);
+            printf("datasize:%d \n  |",datasize);
             datasize++; 
           }
         }
-        
+        printf("\n");
       }
       return_check = datasize;
 
       //isto é codigo de debug
+      printf("\n");
       printf("de_stfu_count %d\n",destf_count);
-      printf("datasize %d\n",datasize);
+      printf("datasize 1 %d\n",datasize);
+      //  printf("-----------------------Frame2-----------------------\n");
+      // for(int i=0;i<bytes_read+1;i++){
+      //   printf("%02X ", frame_data[i]);
+      // }
+      // printf("----------------------------------------------------\n");
+      // printf("\n");
       printf("-----------------------PACKET-----------------------\n");
       for(int i=0;i<datasize;i++){
         printf("%02X ", packet[i]);
@@ -582,12 +615,13 @@ int llread(char *packet)
       printf("\n");
       printf("ulitma pos do packet %02X \n", packet[datasize-1]);
       printf("\n");
-      
-      if(bcc2 != check_bcc2(packet,datasize))
+      printf("datasize  2 %d\n",datasize);
+      char casd=check_bcc2(packet,datasize);
+      if(bcc2 != casd)
       {
         return_check = -1;
         printf("bcc2 original: %02X \n",bcc2);
-        printf("bcc2 calculado: %02X \n",check_bcc2(packet,datasize));
+        printf("bcc2 calculado2: %02X \n",casd);
         STOP=TRUE;
         checksum = -1;
       }
@@ -625,6 +659,7 @@ int llread(char *packet)
     
     STOP = FALSE;
     printf("Return check last: %d \n",return_check);
+    datasize=0;
     return return_check;
 }
 
