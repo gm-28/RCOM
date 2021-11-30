@@ -20,9 +20,7 @@ int atemptCount = 0;           //tentativas
 int state = 0;                 //estado
 int type = 0;                  //tipo de trama
 int checksum = 0;
-bool stuffed;
 int fd;
-int datasize;
 int N=0;
 
 char check_bcc2(char buf[],int bufsize)
@@ -129,7 +127,6 @@ void statemachine(unsigned char buf, int type)
           {
             N=1;
             state = 3;
-            //printf("CI received\n");
             checksum++;//VERFICAR CHECKSUM
           }
           else if ((buf == (C_I1))||(buf == (C_RR1)))
@@ -192,6 +189,7 @@ void statemachine(unsigned char buf, int type)
           }
           else
           {
+            printf("ERROOO?");
             errorcheck(state);
           }
           break;
@@ -214,8 +212,7 @@ void statemachine(unsigned char buf, int type)
             if(buf == FLAG)
               {
                 state = 5;
-                printf("FLAG2 received\n");
-                checksum++;
+                checksum++; 
               }
           }
           break;
@@ -379,8 +376,11 @@ int llopen(linkLayer connectionParameters)
 // Return number of chars written, or "-1" on error.
 int llwrite(char *buf, int bufSize)
 {
+    state=0;
     return_check = -1;
     type = 1;
+    int data_s=0;
+    int count_stuffing=0;
     
     // Create frame to send
     char frame[MAX_PAYLOAD_SIZE + 8];
@@ -397,10 +397,9 @@ int llwrite(char *buf, int bufSize)
       frame[2] = C_I1;
       frame[3] = BCC_I1;
     }
-    framesize=3;
+    framesize=4;
     for (int i = 0; i < bufSize; i++)
     {
-      printf("framsize 1: %d \n",framesize);
       if(!stuffing(buf[i]))
       {
         frame[framesize] = buf[i];
@@ -408,13 +407,17 @@ int llwrite(char *buf, int bufSize)
       }
       else
       {
+        count_stuffing++;
         frame[framesize] = 0x7d;
         framesize++;
         frame[framesize]=0x5e;
       }
       framesize++;
+      data_s++;
     }
-    printf("framsize 2: %d \n",framesize);
+    printf("count_stuffing: %d \n",count_stuffing);
+    return_check=data_s;
+
     //notsure
     frame[framesize] = check_bcc2(buf,bufSize);
     if(stuffing(frame[framesize]))
@@ -426,32 +429,24 @@ int llwrite(char *buf, int bufSize)
     framesize++;
     frame[framesize] = FLAG;
     framesize++;
-    printf("FRAMESIZE 3 %d \n",framesize);
-    printf(" %02X ",frame[framesize]);
-    // int bruh=0;
-    // int c=0;
-    // for(bruh=0;bruh<3;bruh++){
-    //   c++;
-    //   printf("%d\n",bruh);
+
+    // printf("-------------------------------------------------------\n");
+    // for(int i=0;i<framesize;i++){
+    //   printf(" %02X ",frame[i]);
     // }
-    // printf("bruh: %d c: %d\n",bruh,c);
-    printf("-------------------------------------------------------\n");
-    for(int i=0;i<framesize;i++){
-      printf(" %02X ",frame[i]);
-    }
 
     do
     {
       if (atemptStart == FALSE)
       {
-        return_check = write(fd, frame, framesize);
+        write(fd, frame, framesize);
         //return check caso read falhe??
 
         //alarm(10);  // Set alarm to be triggered in 3s
         atemptStart = TRUE;
 
-        printf("\nSET Frame Sent\n");
-        printf("%d bytes written\n",return_check);
+        printf("\nFrame Sent\n");
+        // printf("%d bytes written\n",return_check);
         printf("Waiting for UA\n");
 
         while (STOP == FALSE)
@@ -461,7 +456,6 @@ int llwrite(char *buf, int bufSize)
           {
             if(checksum != -1)
             {
-              printf("%02X ", buf[i]);
               statemachine(buf[i],type);
             }
           }
@@ -479,6 +473,9 @@ int llwrite(char *buf, int bufSize)
     // codigo fica aqui preso a espera do 3s do alarme
   }while((state != 5) && (atemptCount < (ll->numTries+1)));
 
+  atemptStart=FALSE;
+  STOP=FALSE;
+  printf("Return check last: %d \n",return_check);
   return return_check;
 }
 
@@ -487,79 +484,115 @@ int llwrite(char *buf, int bufSize)
 int llread(char *packet)
 {
     char frame_data[MAX_PAYLOAD_SIZE + 8];
-
+    state=0;
     return_check = -1;
     type = 2;
     int bytes_read = 0;
     int check=0;
     char tmp_buf[1];
+    int bcc2_pos;
+    int destf_count=0;
+    int datasize=0;
+
     while (STOP == FALSE)
     {
       while (check !=2)
       {
-        bytes_read +=read(fd,tmp_buf,1);
-        printf("CHECK: %d ,TMPBUF: %02X\n",check,tmp_buf[0]);
+        read(fd,tmp_buf,1);
         if(tmp_buf[0]==FLAG)
         {
           frame_data[bytes_read]=tmp_buf[0];
           check++;
-          
-          if(check==2)
-          {
-            printf("CHECK2\n");
+          if(check ==2){
             break;
           }
         }
         else
         {
-          printf("CHECK: %d",check);
+          //printf("CHECK: %d",check);
           frame_data[bytes_read]=tmp_buf[0];
-          
         }
+        bytes_read +=1;
         //check >0 enquanto le
       }
-      //printf("ola2 %d \n",bytes_read);
       
       char bcc2;
-      
+
+      //stuffing do bcc2 e verficação da posição do bcc2 para colocar os dados só até ao bcc2(não inclusive)
+      bcc2_pos=bytes_read;
       if(destuffing(frame_data[bytes_read-2],frame_data[bytes_read-1]))
       {
-        bytes_read-=3;
+        destf_count++;
+        printf("destuff\n");
+        bcc2_pos-=2;
         bcc2 = FLAG;
       }
       else
       {
-        bytes_read-=2;
-        bcc2 = frame_data[bytes_read-1];
+        printf("not destuff\n");
+        bcc2_pos-=1;
+        printf("bcc2 not stuffed %02X\n",frame_data[bcc2_pos]);
+        bcc2 = frame_data[bcc2_pos];
+        printf("bcc2 pos : %d \n",bcc2_pos+1);
       }
-      return_check = bytes_read;
-
-      for (int i = 0; i < bytes_read; i++)
-      {
+      printf("flag? %02X e frame size: %d\n",frame_data[bytes_read],bytes_read+1);
+      printf("\n");
+      printf("-----------------------Frame-----------------------\n");
+      for(int i=0;i<bytes_read+1;i++){
         printf("%02X ", frame_data[i]);
+      }
+      printf("----------------------------------------------------\n");
+      printf("\n");
+      //destuffing e colocação dos dados no pacote
+      printf("tamanho do for(frame): %d \n",bytes_read+1);
+      for (int i = 0; i < bytes_read+1; i++)//ir até flag bytesread=pos de flag
+      {
         statemachine(frame_data[i],type);
-        if(state == 4)
+        if((state == 4)&&(i<(bcc2_pos-1)))
         {
-          if(destuffing(frame_data[i],frame_data[i++]) && (i<bytes_read-1))
+          int tmp=i;//pq i++ incrementa o i 
+          if(destuffing(frame_data[tmp],frame_data[tmp++]))
           {
+            destf_count++;
+            printf("Does destuffing happen?\n");
             packet[datasize] = FLAG;
+            datasize++;
+            //printf("%02X ", packet[datasize]);
           }
           else
           {
-            packet[datasize]=frame_data[i];
+            packet[datasize]=frame_data[tmp];
+            // printf("|FRAME %02X |", frame_data[i]);
+            //printf("|%02X [%d]|", packet[datasize],datasize);
+            datasize++; 
           }
-          datasize++;
         }
+        
       }
+      return_check = datasize;
 
-      if(bcc2 == check_bcc2(packet,datasize))
+      //isto é codigo de debug
+      printf("de_stfu_count %d\n",destf_count);
+      printf("datasize %d\n",datasize);
+      printf("-----------------------PACKET-----------------------\n");
+      for(int i=0;i<datasize;i++){
+        printf("%02X ", packet[i]);
+      }
+      printf("----------------------------------------------------\n");
+      printf("\n");
+      printf("ulitma pos do packet %02X \n", packet[datasize-1]);
+      printf("\n");
+      
+      if(bcc2 != check_bcc2(packet,datasize))
       {
         return_check = -1;
+        printf("bcc2 original: %02X \n",bcc2);
+        printf("bcc2 calculado: %02X \n",check_bcc2(packet,datasize));
+        STOP=TRUE;
         checksum = -1;
       }
 
-      //printf("%d bytes received\n", bytes_read);
-
+      printf("Checksum: %d \n",checksum);
       if (checksum == 2)
       {
         printf("Data Frame Received Sucessfully\n");
@@ -584,11 +617,14 @@ int llread(char *packet)
         }
 
         int bytes = write(fd, buf, TYPE1_SIZE);
-        //printf("\nACK Frame Sent\n");
-        //printf("%d bytes written\n", bytes);
+        printf("\nACK Frame Sent\n");
+        printf("%d bytes written\n", bytes);
         STOP = TRUE;
       }
     }
+    
+    STOP = FALSE;
+    printf("Return check last: %d \n",return_check);
     return return_check;
 }
 
@@ -608,6 +644,7 @@ int llclose(int showStatistics)
             {
                 // Create frame to send
                 unsigned char buf[TYPE1_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
+                unsigned char bufR[TYPE1_SIZE];
 
                 for (int i = 0; i < TYPE1_SIZE; i++)
                 {
@@ -621,18 +658,18 @@ int llclose(int showStatistics)
 
                 printf("\nDISC Frame Sent\n");
                 printf("%d bytes written\n", bytes);
-                printf("Waiting for UA\n");
+                printf("Waiting for DISC\n");
 
                 while (STOP == FALSE)
                 {
-                    int bytes = read(fd, buf, TYPE1_SIZE);
+                    int bytes = read(fd, bufR, TYPE1_SIZE);
 
                     for (int i = 0; i < TYPE1_SIZE; i++)
                     {
                         if(checksum != -1)
                         {
-                          printf("%02X ", buf[i]);
-                          statemachine(buf[i],type);
+                          printf("%02X ", bufR[i]);
+                          statemachine(bufR[i],type);
                         }
                     }
 
@@ -644,6 +681,7 @@ int llclose(int showStatistics)
                     }
                     STOP = TRUE;
                 }
+                atemptStart=FALSE;
             }
             if (atemptStart == FALSE)//teste
             {
@@ -667,9 +705,11 @@ int llclose(int showStatistics)
     else if(ll->role == RECEIVER)
     {
         unsigned char buf[TYPE1_SIZE];
+        printf("AM I HERE?\n");
         while (STOP == FALSE)
         {
             // Returns after 5 chars have been input
+            printf("AM I HERE?2\n");
             int bytes = read(fd, buf, TYPE1_SIZE);
 
             for (int i = 0; i < TYPE1_SIZE; i++)
