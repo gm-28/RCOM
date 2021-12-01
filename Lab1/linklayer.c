@@ -37,6 +37,8 @@ void debugp(int s)
 //-Event log (errors);
 void protocol_stats(int r)
 {
+  pd.num_set_b = atemptCount;
+
   printf("Printing File Statistics\n");
   if(r == TRANSMITTER)
   {
@@ -124,6 +126,7 @@ void atemptHandler(int signal)
     }
     else
     {
+        pd.tries++;
         printf("Atempt #%d\n", atemptCount);
     }
 }
@@ -373,7 +376,7 @@ int llopen(linkLayer connectionParameters)
 
                 int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
 
-                //alarm(ll->timeOut);  // Set alarm to be triggered in 3s
+                alarm(ll->timeOut);  // Set alarm to be triggered in 3s
                 atemptStart = TRUE;
 
                 printf("\nSET Frame Sent\n");
@@ -383,10 +386,16 @@ int llopen(linkLayer connectionParameters)
 
                 while (STOP == FALSE)
                 {
+
                     unsigned char buf_read[TYPE1_SIZE];
                     int bytes_read = read(fd, buf_read, TYPE1_SIZE);
+                    int buf_size = TYPE1_SIZE;
+                    if (bytes_read != TYPE1_SIZE)
+                    {
+                      buf_size = 0;
+                    }
                     //ERRO AQUI AO LER COM OFF
-                    for (int i = 0; i < TYPE1_SIZE; i++)
+                    for (int i = 0; i < buf_size; i++)
                     {
                         if(checksum != -1)
                         {
@@ -400,15 +409,16 @@ int llopen(linkLayer connectionParameters)
                         printf("%d bytes received\n", bytes_read);
                         printf("UA Frame Received Sucessfully\n");
                         pd.num_ua_a++;
-                        //alarm(0); //desativa o alarme
+                        alarm(0); //desativa o alarme
                         printf("Ending tx setup\n");
                         return_check = 1;
                     }
                     STOP = TRUE;
                 }
             }
+            //as vezes isto n acontece pq???????'''
         // codigo fica aqui preso a espera do 3s do alarme
-      }while((state != 5) /*&& (atemptCount < (ll->numTries+1))*/);
+      }while((state != 5) && (atemptCount < (ll->numTries+1)));
     }
     else if(ll->role == RECEIVER)
     {
@@ -832,7 +842,7 @@ int llclose(int showStatistics)
             if (checksum == 2)
             {
                 printf("UA Frame Received Sucessfully\n");
-                pd.num_ua_a++;
+                pd.num_ua_b++;
                 return_check = 1;
             }
         }
