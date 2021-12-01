@@ -2,7 +2,7 @@ Repositório código Lab1
 
 ERRO:
  
- -Erro se n receber nd no llopen P.S. alarms tao todos comentados para ja
+ -de vez em quando o timeout buga e ao ultrapassar a ultima tentativa envia outra vez
  
  -  //necessario e so funciona se pd e nao *pd pq?
     //sendo assim pq é q n podemos usar ll em vez de *ll
