@@ -3,6 +3,9 @@ Repositório código Lab1
 ERRO:
  
  -Erro se n receber nd no llopen P.S. alarms tao todos comentados para ja
+ 
+ -  //necessario e so funciona se pd e nao *pd pq?
+    //sendo assim pq é q n podemos usar ll em vez de *ll
 
 TO-DO:
  
@@ -35,5 +38,5 @@ Notas:
   
 Dúvidas:
   
-  -falar stor -> com noise ocorre problema semelhante ao da aula
+  -falar stor -> com noise ocorre problema semelhante ao da aula e 7d?
   
