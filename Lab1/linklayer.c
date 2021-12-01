@@ -68,47 +68,49 @@ void protocol_stats(int r)
 }
 
 //o erro do invalid argument era devido a pormos como int em vez de Bint
-//testar no lab
+//testar no lab para ver quais os valores de oldtio e ver se usa se o oldtio ou o baudrate do main.c
 //tem que retornar um int
 //case n é em principio um int
 int baudrate_check(int baudrate_i)
 {
   debugp(baudrate_i);
-  speed_t baudrate_f;
+  printf("%02X \n", baudrate_i);
+  int baudrate_f;
   switch (baudrate_i)
   {
-    case 1200:
-      baudrate_f = B1200;
+    case 1200: case 9:
+      baudrate_f = B1200;//9
       break;
-    case 1800:
-      baudrate_f = B1800;
+    case 1800: case 10:
+      baudrate_f = B1800;//10
       break;
-    case 2400:
-      baudrate_f = B2400;
+    case 2400: case 11:
+      baudrate_f = B2400;//11
       break;
-    case 4800:
-      baudrate_f = B4800;
+    case 4800: case 12:
+      baudrate_f = B4800;//12
       break;
-    case 9600:
-      baudrate_f = B9600;
+    case 9600: case 13:
+      baudrate_f = B9600;//13
       break;
-    case 19200:
-      baudrate_f = B19200;
+    case 19200: case 14:
+      baudrate_f = B19200;//14
       break;
-    case 38400:
-      baudrate_f = B38400;
+    case 38400: case 15:
+      baudrate_f = B38400;//15
       break;
-    case 57600:
-      baudrate_f = B57600;
+    case 57600: case 4097:
+      baudrate_f = B57600;//4097
       break;
-    case 115200:
-      baudrate_f = B115200;
+    case 115200: case 4098:
+      baudrate_f = B115200;//4098
       break;
     default:
-      baudrate_f = BAUDRATE_DEFAULT;
+      baudrate_f = BAUDRATE_DEFAULT;//15
       break;
   }
-  printf("%d\n", baudrate_f);
+  debugp(baudrate_f);
+  printf("%02X \n", baudrate_f);
   return baudrate_f;
 }
 
@@ -338,13 +340,14 @@ int llopen(linkLayer connectionParameters)
 
     printf("%02X \n", cfgetospeed(&oldtio));
     printf("%d \n", cfgetospeed(&oldtio));
-    printf("%02X \n", cfgetospeed(&newtio));
-    printf("%d \n", cfgetospeed(&newtio));
 
     // Clear struct for new port settings
     bzero(&newtio, sizeof(newtio));
-    newtio.c_cflag = baudrate_check(cfgetospeed(&oldtio)) | CS8 | CLOCAL | CREAD;
+
+    newtio.c_cflag = baudrate_check(cfgetospeed(&oldtio)) | CS8 | CLOCAL | CREAD; //ESTE EM principio SERA O FINAL E CORRETO
+
     //newtio.c_cflag = baudrate_check(ll->baudRate) | CS8 | CLOCAL | CREAD;
+
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
     newtio.c_lflag = 0;
