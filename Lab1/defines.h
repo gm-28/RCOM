@@ -1,4 +1,23 @@
 //mudar dps nomenclatura dos defines BCC1 -> BCC_TX
+
+typedef struct protocol_data {
+  int num_set_a;
+  int num_i_a;
+  int num_disc_T;
+  int num_ua_b;
+
+  int num_ua_a;
+  int num_rr;
+  int num_rej;
+  int num_disc_R;
+
+  int num_set_b;
+  int num_i_b;
+  int num_disc_Tb;
+
+  int tries;
+} protocol_data;
+
 //Supervision and Unnumbered Frames size -> 5
 #define TYPE1_SIZE 5
 

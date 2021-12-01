@@ -12,6 +12,7 @@
 #include "linklayer.h"
 
 linkLayer *ll;
+protocol_data pd;
 
 volatile int STOP = FALSE;
 int return_check = -1;           //-1 se falha 1 se não
@@ -22,6 +23,36 @@ int type = 0;                  //tipo de trama
 int checksum = 0;
 int fd;
 int N=0;
+
+//Error recovery for example, close the connection (DISC) re establish it (SET) and restart the process;
+//-Event log (errors);
+void protocol_stats(int r)
+{
+  printf("Printing File Statistics\n");
+  if(r == TRANSMITTER)
+  {
+    printf("TRANSMITTER\n");
+    printf("Transmissions:\n");
+    printf("SET frames -> %d| I frames -> %d | DISC frames -> %d | UA frames -> %d\n", pd.num_set_a, pd.num_i_a, pd.num_disc_T, pd.num_ua_b);
+    printf("Receptions:\n");
+    printf("UA frames -> %d| RR frames -> %d | REJ frames -> %d |DISC frames -> %d\n", pd.num_ua_a, pd.num_rr, pd.num_rej, pd.num_disc_R);
+    printf("Retransmissions:\n");
+    printf("SET frames -> %d| I frames -> %d | DISC frames -> %d\n", pd.num_set_b, pd.num_i_b , pd.num_disc_Tb);
+    printf("Timeouts -> %d\n", pd.tries);
+  }
+  else if(r == RECEIVER)
+  {
+    printf("RECEIVER\n");
+    printf("Receptions:\n");
+    printf("SET frames -> %d| I frames -> %d | DISC frames -> %d | UA frames -> %d\n", pd.num_set_a, pd.num_i_a , pd.num_disc_R, pd.num_ua_b);
+    printf("Transmissions:\n");
+    printf("UA frames -> %d| RR frames -> %d | REJ frames -> %d | DISC frames -> %d\n", pd.num_ua_a, pd.num_rr, pd.num_rej, pd.num_disc_T);
+  }
+  // printf("Error Recovery\n");
+  // printf("%d\n", 1);
+  // printf("Event Log\n");
+  // printf("%d\n", 1);
+}
 
 char check_bcc2(char buf[],int bufsize)
 {
@@ -47,8 +78,8 @@ bool destuffing(char buf1,char buf2)
 //ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
 //unsigned char stuffing (unsigned char* buf,int buf_size)
 bool stuffing (char buf)
-{ 
-  return buf == FLAG; 
+{
+  return buf == FLAG;
 }
 
 //mudar o timeout usando as flags no linklayer.h????????
@@ -213,7 +244,7 @@ void statemachine(unsigned char buf, int type)
           if(buf == FLAG)
             {
               state = 5;
-              checksum++; 
+              checksum++;
             }
         }
         break;
@@ -280,6 +311,21 @@ int llopen(linkLayer connectionParameters)
     // Set alarm function handler -> atemptHandler -> funçao que vai ser envocada
     (void) signal(SIGALRM, atemptHandler);
 
+    //necessario e so funciona se pd e nao *pd pq?
+    //sendo assim pq é q n podemos usar ll em vez de *ll
+    pd.num_set_a = 0;
+    pd.num_i_a = 0;
+    pd.num_disc_T = 0;
+    pd.num_ua_b = 0;
+    pd.num_ua_a = 0;
+    pd.num_rr = 0;
+    pd.num_rej = 0;
+    pd.num_disc_R = 0;
+    pd.num_set_b = 0;
+    pd.num_i_b = 0;
+    pd.num_disc_Tb = 0;
+    pd.tries = 0;
+
     type = 1;
 
     if(ll->role == TRANSMITTER)
@@ -302,6 +348,7 @@ int llopen(linkLayer connectionParameters)
                 atemptStart = TRUE;
 
                 printf("\nSET Frame Sent\n");
+                pd.num_set_a++;
                 printf("%d bytes written\n", bytes);
                 printf("Waiting for UA\n");
 
@@ -322,6 +369,7 @@ int llopen(linkLayer connectionParameters)
                     {
                         printf("%d bytes received\n", bytes);
                         printf("UA Frame Received Sucessfully\n");
+                        pd.num_ua_a++;
                         alarm(0); //desativa o alarme
                         printf("Ending tx setup\n");
                         return_check = 1;
@@ -351,6 +399,7 @@ int llopen(linkLayer connectionParameters)
             if (checksum == 2)
             {
                 printf("SET Frame Received Sucessfully\n");
+                pd.num_set_a++;
                 unsigned char buf[TYPE1_SIZE] = {FLAG, A, C2, BCC2, FLAG};
 
                 for (int i = 0; i < TYPE1_SIZE; i++)
@@ -360,6 +409,7 @@ int llopen(linkLayer connectionParameters)
 
                 int bytes = write(fd, buf, TYPE1_SIZE);
                 printf("\nUA Frame Sent\n");
+                pd.num_ua_a++;
                 printf("%d bytes written\n", bytes);
                 printf("Ending rx setup\n");
                 STOP = TRUE;
@@ -381,7 +431,7 @@ int llwrite(char *buf, int bufSize)
     return_check = -1;
     type = 1;
     int data_s=0;
-    
+
     // Create frame to send
     char frame[MAX_PAYLOAD_SIZE + 8];
     int framesize = 0;
@@ -438,6 +488,7 @@ int llwrite(char *buf, int bufSize)
         atemptStart = TRUE;
 
         printf("\nFrame Sent\n");
+        pd.num_i_a++;
         // printf("%d bytes written\n",return_check);
         printf("Waiting for UA\n");
 
@@ -456,6 +507,7 @@ int llwrite(char *buf, int bufSize)
           {
             printf("%d bytes received\n", bytes);
             printf("UA Frame Received Sucessfully\n");
+            pd.num_rr++;
             //alarm(0); //desativa o alarme
             printf("Ending tx setup\n");
           }
@@ -505,7 +557,7 @@ int llread(char *packet)
         }
         bytes_read +=1;
       }
-      
+
       //stuffing do bcc2 e verficação da posição do bcc2 para colocar os dados só até ao bcc2(não inclusive)
       char bcc2;
       int bcc2p;
@@ -542,7 +594,7 @@ int llread(char *packet)
           {
             packet[datasize]=frame_data[i];
             //printf("datasize:%d \n  |",datasize);
-            datasize++; 
+            datasize++;
           }
         }
       }
@@ -561,7 +613,7 @@ int llread(char *packet)
       // printf("ulitma pos do packet %02X \n", packet[datasize-1]);
       // printf("\n");
       // printf("datasize  2 %d\n",datasize);
-      
+
       if(bcc2 != check_bcc2(packet,datasize))
       {
         return_check = -1;
@@ -574,6 +626,7 @@ int llread(char *packet)
       if (checksum == 2)
       {
         printf("Data Frame Received Sucessfully\n");
+        pd.num_rr++;
         unsigned char buf[TYPE1_SIZE];
         buf[0] = FLAG;
         buf[1] = A;
@@ -596,11 +649,12 @@ int llread(char *packet)
 
         int bytes = write(fd, buf, TYPE1_SIZE);
         printf("\nACK Frame Sent\n");
+        pd.num_i_a++;
         printf("%d bytes written\n", bytes);
         STOP = TRUE;
       }
     }
-    
+
     STOP = FALSE;
     printf("Return check last: %d \n",return_check);
     datasize=0;
@@ -636,6 +690,7 @@ int llclose(int showStatistics)
                 atemptStart = TRUE;
 
                 printf("\nDISC Frame Sent\n");
+                pd.num_disc_T++;
                 printf("%d bytes written\n", bytes);
                 printf("Waiting for DISC\n");
 
@@ -656,6 +711,7 @@ int llclose(int showStatistics)
                     {
                         printf("%d bytes received\n", bytes);
                         printf("DISC Frame Received Sucessfully\n");
+                        pd.num_disc_R++;
                         alarm(0); //desativa o alarme
                     }
                     STOP = TRUE;
@@ -675,6 +731,7 @@ int llclose(int showStatistics)
               atemptStart = TRUE;
 
               printf("\nUA Frame Sent\n");
+              pd.num_ua_b++;
               printf("%d bytes written\n", bytes);
               return_check = 1;
             }
@@ -702,6 +759,7 @@ int llclose(int showStatistics)
             if (checksum == 2)
             {
                 printf("DISC Frame Received Sucessfully\n");
+                pd.num_disc_R++;
                 unsigned char buf[TYPE1_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
 
                 for (int i = 0; i < TYPE1_SIZE; i++)
@@ -711,6 +769,7 @@ int llclose(int showStatistics)
 
                 int bytes = write(fd, buf, TYPE1_SIZE);
                 printf("\nDISC Frame Sent\n");
+                pd.num_disc_T++;
                 printf("%d bytes written\n", bytes);
                 STOP = TRUE;
             }
@@ -727,6 +786,7 @@ int llclose(int showStatistics)
             if (checksum == 2)
             {
                 printf("DISC Frame Received Sucessfully\n");
+                pd.num_ua_a++;
                 return_check = 1;
             }
         }
@@ -738,5 +798,11 @@ int llclose(int showStatistics)
     //      exit(-1);
     // }
     close(fd);
+
+    if (showStatistics)
+    {
+      protocol_stats(ll->role);
+    }
+
     return return_check;
 }
