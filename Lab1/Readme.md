@@ -8,7 +8,9 @@ ERRO:
     //sendo assim pq é q n podemos usar ll em vez de *ll
 
 TO-DO:
- 
+
+  -Testar LAB baudrate
+
   -Quickly move to the cable program console and press 0 for unplugging the cable, 2 to add noise, and 1 to normal
 	5.3. Should have received a nice looking penguin even if the cable disconnected or with noise added???????????'
   
