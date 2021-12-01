@@ -39,6 +39,8 @@ void protocol_stats(int r)
 {
   pd.num_set_b = atemptCount;
 
+  //como fazer para o pd.num_i_b e pd.num_disc_Tb??????
+
   printf("Printing File Statistics\n");
   if(r == TRANSMITTER)
   {
@@ -65,23 +67,48 @@ void protocol_stats(int r)
   // printf("%d\n", 1);
 }
 
-//??????????????????????
+//o erro do invalid argument era devido a pormos como int em vez de Bint
+//testar no lab
+//tem que retornar um int
+//case n é em principio um int
 int baudrate_check(int baudrate_i)
 {
-  //debugp(baudrate_i);
-  int baudrate_f;
+  debugp(baudrate_i);
+  speed_t baudrate_f;
   switch (baudrate_i)
   {
-    case B0:
-    baudrate_f = B0;
-    /*case 9600:
-    baudrate_f = B9600;*/
-    break;
+    case 1200:
+      baudrate_f = B1200;
+      break;
+    case 1800:
+      baudrate_f = B1800;
+      break;
+    case 2400:
+      baudrate_f = B2400;
+      break;
+    case 4800:
+      baudrate_f = B4800;
+      break;
+    case 9600:
+      baudrate_f = B9600;
+      break;
+    case 19200:
+      baudrate_f = B19200;
+      break;
+    case 38400:
+      baudrate_f = B38400;
+      break;
+    case 57600:
+      baudrate_f = B57600;
+      break;
+    case 115200:
+      baudrate_f = B115200;
+      break;
     default:
       baudrate_f = BAUDRATE_DEFAULT;
       break;
   }
-  //debugp(baudrate_f);
+  printf("%d\n", baudrate_f);
   return baudrate_f;
 }
 
@@ -309,11 +336,15 @@ int llopen(linkLayer connectionParameters)
         exit(-1);
     }
 
-    //printf("%s\n", cfgetospeed(&oldtio));
+    printf("%02X \n", cfgetospeed(&oldtio));
+    printf("%d \n", cfgetospeed(&oldtio));
+    printf("%02X \n", cfgetospeed(&newtio));
+    printf("%d \n", cfgetospeed(&newtio));
 
     // Clear struct for new port settings
     bzero(&newtio, sizeof(newtio));
     newtio.c_cflag = baudrate_check(cfgetospeed(&oldtio)) | CS8 | CLOCAL | CREAD;
+    //newtio.c_cflag = baudrate_check(ll->baudRate) | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
     newtio.c_lflag = 0;
@@ -524,7 +555,7 @@ int llwrite(char *buf, int bufSize)
         write(fd, frame, framesize);
         //return check caso read falhe??
 
-        //alarm(10);  // Set alarm to be triggered in 3s
+        alarm(ll->timeOut);  // Set alarm to be triggered in 3s
         atemptStart = TRUE;
 
         printf("\nI Frame Sent\n");
@@ -535,6 +566,7 @@ int llwrite(char *buf, int bufSize)
         while (STOP == FALSE)
         {
           int bytes_read = read(fd, buf, TYPE1_SIZE);
+
           for (int i = 0; i < TYPE1_SIZE; i++)
           {
             if(checksum != -1)
@@ -548,13 +580,13 @@ int llwrite(char *buf, int bufSize)
             printf("%d bytes received\n", bytes_read);
             printf("RR Frame Received Sucessfully\n");
             pd.num_rr++;
-            //alarm(0); //desativa o alarme
+            alarm(0); //desativa o alarme
           }
           STOP = TRUE;
         }
       }
     // codigo fica aqui preso a espera do 3s do alarme
-  }while((state != 5) /*&& (atemptCount < (ll->numTries+1))*/);
+  }while((state != 5) && (atemptCount < (ll->numTries+1)));
 
   state = 0;
   atemptStart = FALSE;
@@ -727,7 +759,7 @@ int llclose(int showStatistics)
 
                 int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
 
-                //alarm(ll->timeOut);  // Set alarm to be triggered in 3s
+                alarm(ll->timeOut);  // Set alarm to be triggered in 3s
                 atemptStart = TRUE;
 
                 printf("\n1st DISC Frame Sent\n");
@@ -753,7 +785,7 @@ int llclose(int showStatistics)
                         printf("%d bytes received\n", bytes_read);
                         printf("2nd DISC Frame Received Sucessfully\n");
                         pd.num_disc_R++;
-                        //alarm(0); //desativa o alarme
+                        alarm(0); //desativa o alarme
                     }
                     STOP = TRUE;
                 }
@@ -777,7 +809,7 @@ int llclose(int showStatistics)
               return_check = 1;
             }
         // codigo fica aqui preso a espera do 3s do alarme
-      }while((state != 5) /*&& (atemptCount < (ll->numTries+1))*/);
+      }while((state != 5) && (atemptCount < (ll->numTries+1)));
     }
     else if(ll->role == RECEIVER)
     {
