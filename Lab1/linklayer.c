@@ -147,7 +147,7 @@ void atemptHandler(int signal)
 {
     atemptCount++;
     atemptStart = FALSE; //se não ele não entra no ciclo while de novo
-    STOP = FALSE; // se não ele não entra no ciclo while de novo
+    //STOP = FALSE; // se não ele não entra no ciclo while de novo
     checksum = 0;
     if (atemptCount > ll->numTries)
     {
@@ -537,7 +537,6 @@ int llwrite(char *buf, int bufSize)
       framesize++;
       data_s++;
     }
-    return_check = data_s;
 
     //notsure
     frame[framesize] = check_bcc2(buf,bufSize);
@@ -551,12 +550,12 @@ int llwrite(char *buf, int bufSize)
     frame[framesize] = FLAG;
     framesize++;
 
-    do
+    while((state != 5) && (atemptCount < (ll->numTries+1)))
     {
       if (atemptStart == FALSE)
       {
+        STOP = FALSE;
         write(fd, frame, framesize);
-        //return check caso read falhe??
 
         alarm(ll->timeOut);  // Set alarm to be triggered in 3s
         atemptStart = TRUE;
@@ -569,8 +568,13 @@ int llwrite(char *buf, int bufSize)
         while (STOP == FALSE)
         {
           int bytes_read = read(fd, buf, TYPE1_SIZE);
-
-          for (int i = 0; i < TYPE1_SIZE; i++)
+          int buf_size = TYPE1_SIZE;
+          if (bytes_read != TYPE1_SIZE)
+            {
+              buf_size = 0;
+            }
+            //ERRO AQUI AO LER COM OFF
+          for (int i = 0; i < buf_size; i++)
           {
             if(checksum != -1)
             {
@@ -584,12 +588,13 @@ int llwrite(char *buf, int bufSize)
             printf("RR Frame Received Sucessfully\n");
             pd.num_rr++;
             alarm(0); //desativa o alarme
+            return_check = data_s;
           }
           STOP = TRUE;
         }
-      }
+      }   
     // codigo fica aqui preso a espera do 3s do alarme
-  }while((state != 5) && (atemptCount < (ll->numTries+1)));
+  }
 
   state = 0;
   atemptStart = FALSE;
