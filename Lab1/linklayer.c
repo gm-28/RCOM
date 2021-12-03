@@ -1,3 +1,6 @@
+#include "linklayer.h"
+#include "defines.h"            //ficheiro com os defines
+
 #include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
@@ -7,9 +10,8 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
-#include "defines.h"            //ficheiro com os defines
-#include <stdbool.h>
-#include "linklayer.h"
+#include <stdbool.h>            //biblioteca para bool
+#include <time.h>               //biblioteca para clock
 
 linkLayer *ll;
 protocol_data pd;
@@ -23,6 +25,8 @@ int type = 0;                  //tipo de trama
 int checksum = 0;              //???????????????''
 int fd;                        //????????????????
 int N=0;                       //Ns = 0 || 1
+time_t total_time;             //tempo total do programa -> resolução de 1s
+time_t file_time;              //tempo total de transferencia do ficheiro -> resolução de 1s
 
 int debug_i = 0;               //debug only
 
@@ -33,13 +37,14 @@ void debugp(int s)
     debug_i++;
 }
 
-//Error recovery for example, close the connection (DISC) re establish it (SET) and restart the process;
-//-Event log (errors);
 void protocol_stats(int r)
 {
+  total_time = time(NULL) - total_time;
+
   pd.num_set_b = atemptCount;
 
   //como fazer para o pd.num_i_b e pd.num_disc_Tb??????
+  //faz se reset ao atemptCount e poe se o pd.num_set_b=atemptCount dentro do llopen
 
   printf("Printing File Statistics\n");
   if(r == TRANSMITTER)
@@ -61,10 +66,12 @@ void protocol_stats(int r)
     printf("Transmissions:\n");
     printf("UA frames -> %d| RR frames -> %d | REJ frames -> %d | DISC frames -> %d\n", pd.num_ua_a, pd.num_rr, pd.num_rej, pd.num_disc_T);
   }
-  // printf("Error Recovery\n");
+  // printf("Error Recovery\n"); //Error recovery for example, close the connection (DISC) re establish it (SET) and restart the process;
   // printf("%d\n", 1);
-  // printf("Event Log\n");
+  // printf("Event Log\n");//-Event log (errors);
   // printf("%d\n", 1);
+  printf("Time of transfer of file data -> %ld s\n", file_time);
+  printf("Total Time of Program -> %ld s\n", total_time);
 }
 
 //o erro do invalid argument era devido a pormos como int em vez de Bint
@@ -73,8 +80,6 @@ void protocol_stats(int r)
 //case n é em principio um int
 int baudrate_check(int baudrate_i)
 {
-  debugp(baudrate_i);
-  printf("%02X \n", baudrate_i);
   int baudrate_f;
   switch (baudrate_i)
   {
@@ -109,8 +114,6 @@ int baudrate_check(int baudrate_i)
       baudrate_f = BAUDRATE_DEFAULT;//15
       break;
   }
-  debugp(baudrate_f);
-  printf("%02X \n", baudrate_f);
   return baudrate_f;
 }
 
@@ -316,6 +319,8 @@ void statemachine(unsigned char buf, int type)
 // Return "1" on success or "-1" on error.
 int llopen(linkLayer connectionParameters)
 {
+    total_time = time(NULL);
+
     ll = (linkLayer *) malloc(sizeof(linkLayer));
     ll->baudRate = connectionParameters.baudRate;
     ll->role = connectionParameters.role;
@@ -331,6 +336,7 @@ int llopen(linkLayer connectionParameters)
     }
     struct termios oldtio;
     struct termios newtio;
+
     // Save current port settings
     if (tcgetattr(fd, &oldtio) == -1)
     {
@@ -377,8 +383,7 @@ int llopen(linkLayer connectionParameters)
     // Set alarm function handler -> atemptHandler -> funçao que vai ser envocada
     (void) signal(SIGALRM, atemptHandler);
 
-    //necessario e so funciona se pd e nao *pd pq?
-    //sendo assim pq é q n podemos usar ll em vez de *ll
+    //Init Stats
     pd.num_set_a = 0;
     pd.num_i_a = 0;
     pd.num_disc_T = 0;
@@ -396,7 +401,7 @@ int llopen(linkLayer connectionParameters)
 
     if(ll->role == TRANSMITTER)
     {
-        do
+        while((state != 5) && (atemptCount < (ll->numTries+1)))
         {
             if (atemptStart == FALSE)
             {
@@ -408,6 +413,7 @@ int llopen(linkLayer connectionParameters)
                     printf("%02X ", buf_sent[i]);
                 }
 
+                STOP = FALSE;
                 int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
 
                 alarm(ll->timeOut);  // Set alarm to be triggered in 3s
@@ -420,7 +426,6 @@ int llopen(linkLayer connectionParameters)
 
                 while (STOP == FALSE)
                 {
-
                     unsigned char buf_read[TYPE1_SIZE];
                     int bytes_read = read(fd, buf_read, TYPE1_SIZE);
                     int buf_size = TYPE1_SIZE;
@@ -428,7 +433,7 @@ int llopen(linkLayer connectionParameters)
                     {
                       buf_size = 0;
                     }
-                    //ERRO AQUI AO LER COM OFF
+
                     for (int i = 0; i < buf_size; i++)
                     {
                         if(checksum != -1)
@@ -446,13 +451,13 @@ int llopen(linkLayer connectionParameters)
                         alarm(0); //desativa o alarme
                         printf("Ending tx setup\n");
                         return_check = 1;
+                        file_time = time(NULL);
                     }
                     STOP = TRUE;
                 }
             }
-            //as vezes isto n acontece pq???????'''
         // codigo fica aqui preso a espera do 3s do alarme
-      }while((state != 5) && (atemptCount < (ll->numTries+1)));
+        }
     }
     else if(ll->role == RECEIVER)
     {
@@ -488,12 +493,13 @@ int llopen(linkLayer connectionParameters)
                 printf("Ending rx setup\n");
                 STOP = TRUE;
                 return_check = 1;
+                file_time = time(NULL);
             }
         }
     }
     state = 0;          //reset da maquina de estados
     STOP = FALSE;       //reset
-    atemptStart = FALSE;
+    atemptStart = FALSE;//reset
     return return_check;
 }
 
@@ -544,7 +550,7 @@ int llwrite(char *buf, int bufSize)
     {
       frame[framesize] = 0x7d;
       framesize++;
-      frame[framesize]=0x5e;
+      frame[framesize] = 0x5e;
     }
     framesize++;
     frame[framesize] = FLAG;
@@ -562,6 +568,7 @@ int llwrite(char *buf, int bufSize)
 
         printf("\nI Frame Sent\n");
         pd.num_i_a++;
+
         // printf("%d bytes written\n",return_check);
         printf("Waiting for RR\n");
 
@@ -573,7 +580,7 @@ int llwrite(char *buf, int bufSize)
             {
               buf_size = 0;
             }
-            //ERRO AQUI AO LER COM OFF
+
           for (int i = 0; i < buf_size; i++)
           {
             if(checksum != -1)
@@ -592,15 +599,15 @@ int llwrite(char *buf, int bufSize)
           }
           STOP = TRUE;
         }
-      }   
+      }
     // codigo fica aqui preso a espera do 3s do alarme
-  }
+    }
 
-  state = 0;
-  atemptStart = FALSE;
-  STOP = FALSE;
-  printf("Return check last: %d \n",return_check);
-  return return_check;
+    state = 0;
+    atemptStart = FALSE;
+    STOP = FALSE;
+    printf("Return check last: %d \n",return_check);
+    return return_check;
 }
 
 // Receive data in packet.
@@ -747,6 +754,8 @@ int llread(char *packet)
 // Return "1" on success or "-1" on error.
 int llclose(int showStatistics)
 {
+    file_time = time(NULL) - file_time;
+
     return_check = -1;
     type = 1;
 
@@ -765,6 +774,7 @@ int llclose(int showStatistics)
                     printf("%02X ", buf_sent[i]);
                 }
 
+                STOP = FALSE;
                 int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
 
                 alarm(ll->timeOut);  // Set alarm to be triggered in 3s
@@ -778,8 +788,13 @@ int llclose(int showStatistics)
                 while (STOP == FALSE)
                 {
                     int bytes_read = read(fd, buf_read, TYPE1_SIZE);
+                    int buf_size = TYPE1_SIZE;
+                    if (bytes_read != TYPE1_SIZE)
+                    {
+                        buf_size = 0;
+                    }
 
-                    for (int i = 0; i < TYPE1_SIZE; i++)
+                    for (int i = 0; i < buf_size; i++)
                     {
                         if(checksum != -1)
                         {
@@ -799,7 +814,7 @@ int llclose(int showStatistics)
                 }
                 atemptStart=FALSE;
             }
-            if (atemptStart == FALSE)//teste
+            if (atemptStart == FALSE)//bug????? n deveria ser fora e dentro de um novo while
             {
               unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C2, BCC2, FLAG};
               for (int i = 0; i < TYPE1_SIZE; i++)
@@ -808,8 +823,8 @@ int llclose(int showStatistics)
               }
 
               int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
-              //alarm(ll->timeOut);  // Set alarm to be triggered in 3s
-              atemptStart = TRUE;
+
+              //atemptStart = TRUE;
 
               printf("\nUA Frame Sent\n");
               pd.num_ua_b++;
@@ -887,12 +902,14 @@ int llclose(int showStatistics)
             }
         }
     }
+
     //Restore the old port settings perguntar stor
     //if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
     // {
     //      perror("tcsetattr");
     //      exit(-1);
     // }
+
     close(fd);
 
     if (showStatistics)
