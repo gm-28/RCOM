@@ -54,6 +54,15 @@ typedef struct protocol_data {
 //XOR(A,C_RR1) -> 24
 #define BCC_RR1 (A^C_RR1)
 
+//0b00000101 -> 5 Reject
+#define C_REJ0 0X05
+//XOR(A,C_REJ0) -> 0
+#define BCC_REJ0 (A^C_REJ0)
+//0b00100101 -> 25 Reject
+#define C_REJ1 0X25
+//XOR(A,C_REJ1) -> 20
+#define BCC_REJ1 (A^C_REJ1)
+
 //0b00001011 -> B DISC
 #define C_DISC 0X0B
 //XOR(A,C_DISC) -> E

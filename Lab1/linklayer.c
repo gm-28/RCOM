@@ -15,6 +15,7 @@
 
 linkLayer *ll;
 protocol_data pd;
+struct termios oldtio;
 
 volatile int STOP = FALSE;     //inicio de receção
 int return_check = -1;         //-1 se falha 1 se não
@@ -40,8 +41,6 @@ void debugp(int s)
 void protocol_stats(int r)
 {
   total_time = time(NULL) - total_time;
-
-  pd.num_set_b = atemptCount;
 
   //como fazer para o pd.num_i_b e pd.num_disc_Tb??????
   //faz se reset ao atemptCount e poe se o pd.num_set_b=atemptCount dentro do llopen
@@ -165,8 +164,7 @@ void atemptHandler(int signal)
 
 void errorcheck(int s)
 {
-    printf("An error ocurred in byte nº %d\n", state);
-    checksum = -1; // error
+  checksum = -1; // error
 }
 
 //Máquina de Estados
@@ -196,8 +194,6 @@ void statemachine(unsigned char buf, int type)
         else if (buf == FLAG)
         {
           state = 1;
-          //printf("FLAG received\n");
-          errorcheck(state);
         }
         else
         {
@@ -218,13 +214,13 @@ void statemachine(unsigned char buf, int type)
           //printf("C1 received\n");
           checksum++;
         }
-        else if ((buf == (C_I0))||(buf == (C_RR0)))
+        else if ((buf == (C_I0))||(buf == (C_RR0)) || (buf == (C_REJ1)))
         {
           N=1;
           state = 3;
           checksum++;//VERFICAR CHECKSUM
         }
-        else if ((buf == (C_I1))||(buf == (C_RR1)))
+        else if ((buf == (C_I1))||(buf == (C_RR1)) || (buf == (C_REJ0)))
         {
           N=0;
           state = 3;
@@ -240,8 +236,6 @@ void statemachine(unsigned char buf, int type)
         else if (buf == FLAG)
         {
           state = 1;
-          //printf("FLAG received\n");
-          errorcheck(state);
         }
         else
         {
@@ -259,13 +253,13 @@ void statemachine(unsigned char buf, int type)
           state = 4;
           //printf("BCC1 received\n");
         }
-        else if ((buf == (BCC_I0))||(buf == (BCC_RR0)))
+        else if ((buf == (BCC_I0))||(buf == (BCC_RR0))||(buf == (BCC_REJ1)))
         {
           N=1;
           state = 4;
           //printf("BCC_I received\n");
         }
-        else if ((buf == (BCC_I1))||(buf == (BCC_RR1)))
+        else if ((buf == (BCC_I1))||(buf == (BCC_RR1))||(buf == (BCC_REJ0)))
         {
           N=0;
           state = 4;
@@ -279,8 +273,6 @@ void statemachine(unsigned char buf, int type)
         else if (buf == FLAG)
         {
           state = 1;
-          //printf("FLAG received\n");
-          errorcheck(state);
         }
         else
         {
@@ -334,7 +326,6 @@ int llopen(linkLayer connectionParameters)
         perror(ll->serialPort);
         exit(-1);
     }
-    struct termios oldtio;
     struct termios newtio;
 
     // Save current port settings
@@ -452,6 +443,8 @@ int llopen(linkLayer connectionParameters)
                         printf("Ending tx setup\n");
                         return_check = 1;
                         file_time = time(NULL);
+                        pd.num_set_b = atemptCount;
+                        atemptCount=0;
                     }
                     STOP = TRUE;
                 }
@@ -591,11 +584,27 @@ int llwrite(char *buf, int bufSize)
 
           if (checksum == 2)
           {
-            printf("%d bytes received\n", bytes_read);
-            printf("RR Frame Received Sucessfully\n");
-            pd.num_rr++;
-            alarm(0); //desativa o alarme
-            return_check = data_s;
+            if(((buf[2]==C_REJ0) && (buf[3]==BCC_REJ0))|| ((buf[2]==C_REJ1) && (buf[3]==BCC_REJ1)))
+            {
+              printf("Rej received \n");
+              checksum=0;
+              pd.num_rej++;
+              pd.num_i_b++;
+              state = 0;
+              alarm(0);
+              atemptStart = FALSE;
+              state=0;
+            }
+            else 
+            {
+              printf("%d bytes received\n", bytes_read);
+              printf("RR Frame Received Sucessfully\n");
+              pd.num_rr++;
+              alarm(0); //desativa o alarme
+              return_check = data_s;
+              pd.num_i_b+=atemptCount;
+              atemptCount=0;
+            }
           }
           STOP = TRUE;
         }
@@ -606,7 +615,7 @@ int llwrite(char *buf, int bufSize)
     state = 0;
     atemptStart = FALSE;
     STOP = FALSE;
-    printf("Return check last: %d \n",return_check);
+    
     return return_check;
 }
 
@@ -624,15 +633,30 @@ int llread(char *packet)
     int destf_count = 0;
     int datasize = 0;
 
+    for(int i=0;i<4;i++){
+      read(fd,tmp_buf,1);
+      frame_data[bytes_read] = tmp_buf[0];
+      statemachine(frame_data[bytes_read],type);
+      bytes_read += 1;
+      if(checksum == -1){
+        STOP=TRUE;
+        return_check=0;
+        break;
+      }
+    }
+    checksum=0;
+    state=0;
+
     while (STOP == FALSE)
     {
       while (check != 2)
       {
         read(fd,tmp_buf,1);
-        if(tmp_buf[0] == FLAG)
+        
+        if(tmp_buf[0] == FLAG && bytes_read != 0)
         {
           frame_data[bytes_read] = tmp_buf[0];
-          check++;
+          check=2;
           if(check == 2)
           {
             break;
@@ -658,7 +682,6 @@ int llread(char *packet)
       else
       {
         bcc2_pos -= 1;
-        //printf("bcc2 not stuffed %02X\n",frame_data[bcc2_pos]);
         bcc2 = frame_data[bcc2_pos];
       }
       bcc2p = bcc2_pos;
@@ -672,7 +695,6 @@ int llread(char *packet)
           if(destuffing(frame_data[i],frame_data[i+1]))
           {
             destf_count++;
-            //printf("Does destuffing happen? | %02X |%02X  ",frame_data[i],frame_data[i+1]);
             packet[datasize] = FLAG;
             i++;
             datasize++;
@@ -680,36 +702,50 @@ int llread(char *packet)
           else
           {
             packet[datasize] = frame_data[i];
-            //printf("datasize:%d \n  |",datasize);
             datasize++;
           }
         }
       }
       return_check = datasize;
 
-      //isto é codigo de debug
-      // printf("\n");
-      // printf("de_stfu_count %d\n",destf_count);
-      // printf("datasize 1 %d\n",datasize);
-      // printf("-----------------------PACKET-----------------------\n");
-      // for(int i=0;i<datasize;i++){
-      //   printf("%02X ", packet[i]);
-      // }
-      // printf("----------------------------------------------------\n");
-      // printf("\n");
-      // printf("ulitma pos do packet %02X \n", packet[datasize-1]);
-      // printf("\n");
-      // printf("datasize  2 %d\n",datasize);
-
       if(bcc2 != check_bcc2(packet,datasize))
       {
-        return_check = -1;
         printf("bcc2 original: %02X \n",bcc2);
         printf("bcc2 calculado2: %02X \n",check_bcc2(packet,datasize));
+
+        pd.num_rej++;
+        unsigned char buf_sent[TYPE1_SIZE];
+        buf_sent[0] = FLAG;
+        buf_sent[1] = A;
+        if (!N)
+        {
+          buf_sent[2] = C_REJ1;
+          buf_sent[3] = BCC_REJ1;
+        }
+        else
+        {
+          buf_sent[2] = C_REJ0;
+          buf_sent[3] = BCC_REJ0;
+        }
+        buf_sent[4] = FLAG;
+
+        for (int i = 0; i < TYPE1_SIZE; i++)
+        {
+          printf("%02X ", buf_sent[i]);
+        }
+
+        int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
+        printf("\n Rej Sent\n");
+        pd.num_i_a++;
+        printf("%d bytes written\n", bytes_sent);
         STOP = TRUE;
+
+        STOP = TRUE;
+        return_check = 0; //dados para o ficheiro rejeitados
         checksum = -1;
       }
-      // printf("Checksum: %d \n",checksum);
+
+      printf(" check %d",checksum );
       if (checksum == 2)
       {
         printf("I Frame Received Sucessfully\n");
@@ -745,7 +781,7 @@ int llread(char *packet)
     datasize = 0;
     state = 0;
     STOP = FALSE;
-    printf("Return check last: %d \n",return_check);
+    
     return return_check;
 }
 
@@ -761,154 +797,138 @@ int llclose(int showStatistics)
 
     if(ll->role == TRANSMITTER)
     {
-        do
+      while((state != 5) && (atemptCount < (ll->numTries+1)))
+      {
+        if (atemptStart == FALSE)
         {
-            if (atemptStart == FALSE)
-            {
-                // Create frame to send
-                unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
-                unsigned char buf_read[TYPE1_SIZE];
+          // Create frame to send
+          unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
+          unsigned char buf_read[TYPE1_SIZE];
 
-                for (int i = 0; i < TYPE1_SIZE; i++)
-                {
-                    printf("%02X ", buf_sent[i]);
-                }
+          for (int i = 0; i < TYPE1_SIZE; i++)
+          {
+              printf("%02X ", buf_sent[i]);
+          }
 
-                STOP = FALSE;
-                int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
+          STOP = FALSE;
+          int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
 
-                alarm(ll->timeOut);  // Set alarm to be triggered in 3s
-                atemptStart = TRUE;
+          alarm(ll->timeOut);  // Set alarm to be triggered in 3s
+          atemptStart = TRUE;
 
-                printf("\n1st DISC Frame Sent\n");
-                pd.num_disc_T++;
-                printf("%d bytes written\n", bytes_sent);
-                printf("Waiting for 2nd DISC\n");
+          printf("\n1st DISC Frame Sent\n");
+          pd.num_disc_T++;
+          printf("%d bytes written\n", bytes_sent);
+          printf("Waiting for 2nd DISC\n");
 
-                while (STOP == FALSE)
-                {
-                    int bytes_read = read(fd, buf_read, TYPE1_SIZE);
-                    int buf_size = TYPE1_SIZE;
-                    if (bytes_read != TYPE1_SIZE)
-                    {
-                        buf_size = 0;
-                    }
-
-                    for (int i = 0; i < buf_size; i++)
-                    {
-                        if(checksum != -1)
-                        {
-                          printf("%02X ", buf_read[i]);
-                          statemachine(buf_read[i],type);
-                        }
-                    }
-
-                    if (checksum == 2)
-                    {
-                        printf("%d bytes received\n", bytes_read);
-                        printf("2nd DISC Frame Received Sucessfully\n");
-                        pd.num_disc_R++;
-                        alarm(0); //desativa o alarme
-                    }
-                    STOP = TRUE;
-                }
-                atemptStart=FALSE;
-            }
-            if (atemptStart == FALSE)//bug????? n deveria ser fora e dentro de um novo while
-            {
-              unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C2, BCC2, FLAG};
-              for (int i = 0; i < TYPE1_SIZE; i++)
+          while (STOP == FALSE)
+          {
+              int bytes_read = read(fd, buf_read, TYPE1_SIZE);
+              int buf_size = TYPE1_SIZE;
+              if (bytes_read != TYPE1_SIZE)
               {
-                  printf("%02X ", buf_sent[i]);
+                  buf_size = 0;
               }
 
-              int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
+              for (int i = 0; i < buf_size; i++)
+              {
+                  if(checksum != -1)
+                  {
+                    printf("%02X ", buf_read[i]);
+                    statemachine(buf_read[i],type);
+                  }
+              }
 
-              //atemptStart = TRUE;
-
-              printf("\nUA Frame Sent\n");
-              pd.num_ua_b++;
-              printf("%d bytes written\n", bytes_sent);
-              return_check = 1;
-            }
-        // codigo fica aqui preso a espera do 3s do alarme
-      }while((state != 5) && (atemptCount < (ll->numTries+1)));
+              if (checksum == 2)
+              {
+                  printf("%d bytes received\n", bytes_read);
+                  printf("2nd DISC Frame Received Sucessfully\n");
+                  pd.num_disc_R++;
+                  alarm(0); //desativa o alarme
+                  atemptCount=0;
+              }
+              STOP = TRUE;
+          }
+      }
+      // codigo fica aqui preso a espera do 3s do alarme
     }
-    else if(ll->role == RECEIVER)
+
+    if(atemptCount < (ll->numTries+1))
     {
-        unsigned char buf_read[TYPE1_SIZE];
-        while (STOP == FALSE)
-        {
-            // Returns after 5 chars have been input
-            int bytes_read = read(fd, buf_read, TYPE1_SIZE);
+      unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C2, BCC2, FLAG};
+      for (int i = 0; i < TYPE1_SIZE; i++)
+      {
+        printf("%02X ", buf_sent[i]);
+      }
+
+      int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
+      
+      printf("\nUA Frame Sent\n");
+      pd.num_ua_b++;
+      printf("%d bytes written\n", bytes_sent);
+      return_check = 1;
+    }
+  }
+  else if(ll->role == RECEIVER)
+  {
+      unsigned char buf_read[TYPE1_SIZE];
+      while (STOP == FALSE)
+      {
+          // Returns after 5 chars have been input
+          int bytes_read = read(fd, buf_read, TYPE1_SIZE);
+
+          for (int i = 0; i < TYPE1_SIZE; i++)
+          {
+            printf("%02X ", buf_read[i]);
+            statemachine(buf_read[i],type);
+          }
+
+          printf("%d bytes received\n", bytes_read);
+
+          if (checksum == 2)
+          {
+            printf("1st DISC Frame Received Sucessfully\n");
+            pd.num_disc_R++;
+            unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
 
             for (int i = 0; i < TYPE1_SIZE; i++)
             {
-              printf("%02X ", buf_read[i]);
-              statemachine(buf_read[i],type);
+              printf("%02X ", buf_sent[i]);
             }
 
-            printf("%d bytes received\n", bytes_read);
+            int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
+            printf("\n2nd DISC Frame Sent\n");
+            pd.num_disc_T++;
+            printf("%d bytes written\n", bytes_sent);
+            printf("Waiting for UA\n");
+            STOP = TRUE;
+          }
+          memset(buf_read, 0, sizeof buf_read);
+          bytes_read = read(fd, buf_read, TYPE1_SIZE);
 
-            if (checksum == 2)
-            {
-                printf("1st DISC Frame Received Sucessfully\n");
-                pd.num_disc_R++;
-                unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C_DISC, BCC_DISC, FLAG};
+          for (int i = 0; i < TYPE1_SIZE; i++)
+          {
+            printf("%02X ", buf_read[i]);
+            statemachine(buf_read[i],type);
+          }
 
-                for (int i = 0; i < TYPE1_SIZE; i++)
-                {
-                  printf("%02X ", buf_sent[i]);
-                }
+          printf("%d bytes received\n", bytes_read);
 
-                int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
-                printf("\n2nd DISC Frame Sent\n");
-                pd.num_disc_T++;
-                printf("%d bytes written\n", bytes_sent);
-                printf("Waiting for UA\n"); //CASO N RECEBA FAZ DISC NA MSM SE N ME ENGANO CONGERIR CADERNO
-                STOP = TRUE;
-            }
-
-            // for (int i = 0; i < TYPE1_SIZE; i++)
-            // {
-            //   printf("%02X ", buf_read[i]);
-            // }
-
-            memset(buf_read, 0, sizeof buf_read);
-
-            // for (int i = 0; i < TYPE1_SIZE; i++)
-            // {
-            //   printf("%02X ", buf_read[i]);
-            // }
-
-            //unsigned char buf_read2[TYPE1_SIZE];
-            //ele consegue fzr override do buf_read antigo é suposto?
-            //de qualquer modo o memset vai dar clear ao buff_read
-            bytes_read = read(fd, buf_read, TYPE1_SIZE);
-
-            for (int i = 0; i < TYPE1_SIZE; i++)
-            {
-              printf("%02X ", buf_read[i]);
-              statemachine(buf_read[i],type);
-            }
-
-            printf("%d bytes received\n", bytes_read);
-
-            if (checksum == 2)
-            {
-                printf("UA Frame Received Sucessfully\n");
-                pd.num_ua_b++;
-                return_check = 1;
-            }
+          if (checksum == 2)
+          {
+              printf("UA Frame Received Sucessfully\n");
+              pd.num_ua_b++;
+              return_check = 1;
+          }
         }
     }
 
-    //Restore the old port settings perguntar stor
-    //if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
-    // {
-    //      perror("tcsetattr");
-    //      exit(-1);
-    // }
+    //Restore the old port settings 
+    if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
+    {
+      perror("tcsetattr");
+      exit(-1);
+    }
 
     close(fd);
 
