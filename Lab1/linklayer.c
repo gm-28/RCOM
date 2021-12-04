@@ -593,7 +593,6 @@ int llwrite(char *buf, int bufSize)
               state = 0;
               alarm(0);
               atemptStart = FALSE;
-              state=0;
             }
             else 
             {
