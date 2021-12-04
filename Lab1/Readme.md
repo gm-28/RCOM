@@ -1,15 +1,6 @@
 Repositório código Lab1
 
-ERRO:
- 
- -de vez em quando o timeout buga e ao ultrapassar a ultima tentativa envia outra vez
- 
- -  //necessario e so funciona se pd e nao *pd pq?
-    //sendo assim pq é q n podemos usar ll em vez de *ll
-
 TO-DO:
-
-  -Testar LAB baudrate
 
   -Quickly move to the cable program console and press 0 for unplugging the cable, 2 to add noise, and 1 to normal
 	5.3. Should have received a nice looking penguin even if the cable disconnected or with noise added???????????'
@@ -18,11 +9,7 @@ TO-DO:
   
   -REJ só em problemas de dados e de BCC2
   
-  -Switch com baud rate
-  
 Valorisation Elements:
-
-   -Random error generation in data frames: Suggestion for each correctly received I frame, simulate at the receiver the occurence of errors in header and data field according to     pre defined and independent probabilities, and proceed as if they were real errors;
    
    -REJ implementation;
    
@@ -38,8 +25,4 @@ Valorisation Elements:
 Notas:
   
   -ter em atençao a quando llwrite e llread retornam, não podemos ter dessincronização
-  
-Dúvidas:
-  
-  -falar stor -> com noise ocorre problema semelhante ao da aula e 7d?
   
