@@ -1,5 +1,5 @@
 #include "linklayer.h"
-#include "defines.h"           //ficheiro com os defines
+#include "defines.h"           //file with defines
 
 #include <fcntl.h>
 #include <signal.h>
