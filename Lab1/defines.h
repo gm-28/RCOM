@@ -1,21 +1,21 @@
 //mudar dps nomenclatura dos defines BCC1 -> BCC_TX
 
 typedef struct protocol_data {
-  int num_set_a;
-  int num_i_a;
-  int num_disc_T;
-  int num_ua_b;
+  int num_set_a;  // total number of SET frames sent
+  int num_i_a;    // total number of I frames sent
+  int num_disc_T; // total number of DISC frames sent
+  int num_ua_b;   // total number of UA frames sent
 
-  int num_ua_a;
-  int num_rr;
-  int num_rej;
-  int num_disc_R;
+  int num_ua_a;   // total number of UA frames received
+  int num_rr;     // total number of RR frames received
+  int num_rej;    // total number of REJ frames received
+  int num_disc_R; // total number of DISC frames received
 
-  int num_set_b;
-  int num_i_b;
-  int num_disc_Tb;
+  int num_set_b;  // total number of SET frames retransmitted
+  int num_i_b;    // total number of I frames retransmitted
+  int num_disc_Tb;// total number of DISC frames retransmitted
 
-  int tries;
+  int tries;      // total number of timeouts
 } protocol_data;
 
 //Supervision and Unnumbered Frames size -> 5
@@ -54,11 +54,11 @@ typedef struct protocol_data {
 //XOR(A,C_RR1) -> 24
 #define BCC_RR1 (A^C_RR1)
 
-//0b00000101 -> 5 Reject
+//0b00000101 -> 5 REJ
 #define C_REJ0 0X05
 //XOR(A,C_REJ0) -> 0
 #define BCC_REJ0 (A^C_REJ0)
-//0b00100101 -> 25 Reject
+//0b00100101 -> 25 REJ
 #define C_REJ1 0X25
 //XOR(A,C_REJ1) -> 20
 #define BCC_REJ1 (A^C_REJ1)
