@@ -620,25 +620,52 @@ int llread(char *packet)
   int bcc2_pos = 0;
   int destf_count = 0;
   int datasize = 0;
+  bool rej = FALSE;
 
-  for(int i = 0; i < 4; i++)
-  {
-    read(fd,tmp_buf,1);
-    frame_data[bytes_read] = tmp_buf[0];
-    statemachine(frame_data[bytes_read],type);
-    bytes_read += 1;
-    if(checksum == -1)
-    {
-      STOP = TRUE;
-      return_check = 0;
-      break;
-    }
-  }
-  checksum = 0;
-  state = 0;
+  // for(int i = 0; i < 4; i++)
+  // {
+  //   read(fd,tmp_buf,1);
+  //   frame_data[bytes_read] = tmp_buf[0];
+  //   statemachine(frame_data[bytes_read],type);
+  //   bytes_read += 1;
+  //   if(checksum == -1)
+  //   {
+  //     STOP = TRUE;
+  //     return_check = 0;
+  //     break;
+  //   }
+  // }
+  // checksum = 0;
+  // state = 0;
 
   while (STOP == FALSE)
   {
+    if(!rej)
+    {
+      for(int i = 0; i < 4; i++)
+      {
+        read(fd,tmp_buf,1);
+        frame_data[bytes_read] = tmp_buf[0];
+        statemachine(frame_data[bytes_read],type);
+        bytes_read += 1;
+        if(checksum == -1)
+        {
+          STOP = TRUE;
+          return_check = 0;
+          break;
+        }
+      }
+      checksum = 0;
+      state = 0;
+    }
+    if(((frame_data[2] == C_DISC) && (frame_data[3] == BCC_DISC)))
+    {
+      read(fd,tmp_buf,1);
+      printf("Disc Received\n");
+      return_check = -1;
+      break;
+    }
+
     while (check != 2)
     {
       read(fd,tmp_buf,1);
@@ -704,6 +731,7 @@ int llread(char *packet)
       printf("bcc2 calculado2: %02X \n",check_bcc2(packet,datasize));
 
       pd.num_rej++;
+      rej = true;
       // Create REJ frame to respond
       unsigned char buf_sent[TYPE1_SIZE];
       buf_sent[0] = FLAG;
@@ -781,7 +809,7 @@ int llread(char *packet)
 int llclose(int showStatistics)
 {
   file_time = time(NULL) - file_time;
-
+  attemptCount = 0;
   return_check = -1;
   type = 1;
 
@@ -831,18 +859,27 @@ int llclose(int showStatistics)
 
           if (checksum == 2)
           {
-            printf("%d bytes received\n", bytes_read);
-            printf("2nd DISC Frame Received Sucessfully\n");
-            pd.num_disc_R++;
-            alarm(0); // turns off alarm
-            attemptCount = 0;
+            if(((buf_read[2] == C_REJ0) && (buf_read[3] == BCC_REJ0))|| ((buf_read[2] == C_REJ1) && (buf_read[3] == BCC_REJ1)))
+            {
+              printf("REJ received\n");
+              checksum = 0;
+              pd.num_rej++;
+              state = 0;
+              attemptStart = FALSE;
+            }
+            else
+            {
+              printf("%d bytes received\n", bytes_read);
+              printf("2nd DISC Frame Received Sucessfully\n");
+              pd.num_disc_R++;
+              alarm(0); // turns off alarm
+              attemptCount = 0;
+            }
           }
-          // else       //caso haja timeout no disc
-          // {
-          //   printf("HELLO1 %d\n",pd.num_disc_Tb);
-          //   pd.num_disc_Tb = attemptCount;
-          //   printf("HELLO2 %d\n",pd.num_disc_Tb);
-          // }
+          else       //caso haja timeout no disc
+          {
+            pd.num_disc_Tb = attemptCount;
+          }
           STOP = TRUE;
         }
       }
