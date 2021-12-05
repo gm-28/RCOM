@@ -27,14 +27,14 @@ typedef struct protocol_data {
 #define A 0X05
 
 // 0b00000011 -> 3 SET
-#define C1 0X03
+#define C_SET 0X03
 // XOR(A,C) -> 6
-#define BCC1 (A^C1)
+#define BCC_SET (A^C1)
 
 // 0b00000111 -> 7 UA
-#define C2 0X07
+#define C_UA 0X07
 // XOR(A,C) -> 2
-#define BCC2 (A^C2)
+#define BCC_UA (A^C2)
 
 // 0b00000000 -> 0 I
 #define C_I0 0X00
