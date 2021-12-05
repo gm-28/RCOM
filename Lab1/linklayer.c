@@ -570,7 +570,7 @@ int llwrite(char *buf, int bufSize)
           if(((buf[2] == C_REJ0) && (buf[3] == BCC_REJ0))|| ((buf[2] == C_REJ1) && (buf[3] == BCC_REJ1)))
           {
             printf("REJ received\n");
-            checksum=0;
+            checksum = 0;
             pd.num_rej++;
             pd.num_i_b++;
             state = 0;
@@ -732,7 +732,7 @@ int llread(char *packet)
 
       STOP = TRUE;
       return_check = 0; //dados para o ficheiro rejeitados
-      checksum = -1;
+      checksum = -1; //mudar para errorcheck?????
     }
 
     if (checksum == 2)
