@@ -846,7 +846,7 @@ int llclose(int showStatistics)
           STOP = TRUE;
         }
       }
-    // codigo fica aqui preso a espera do 3s do alarme
+    // 3s alarm
     }
 
     if(attemptCount < (ll->numTries+1))
