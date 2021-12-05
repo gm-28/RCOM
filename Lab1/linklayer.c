@@ -1,5 +1,5 @@
 #include "linklayer.h"
-#include "defines.h"           //file with defines
+#include "defines.h"           // file with defines
 
 #include <fcntl.h>
 #include <signal.h>
@@ -26,6 +26,7 @@ int type = 0;                  // type of frame -> 1 for Supervision and Unnumbe
 int checksum = 0;              // 1 if received C || 2 if received 2nd FLAG || -1 if error
 int fd;                        // file
 int N = 0;                     // Ns = 0 || 1
+bool disc = FALSE;             // TRUE if DISC Received || FALSE if not
 time_t total_time;             // total program time -> resolution of 1s
 time_t file_time;              // total file transfer time -> resolution of 1s
 
@@ -159,6 +160,7 @@ void atemptHandler(int signal)
 void errorcheck()
 {
   checksum = -1; // error
+  state = 0;
 }
 
 // State Machine that analyses the frames
@@ -620,49 +622,31 @@ int llread(char *packet)
   int bcc2_pos = 0;
   int destf_count = 0;
   int datasize = 0;
-  bool rej = FALSE;
-
-  // for(int i = 0; i < 4; i++)
-  // {
-  //   read(fd,tmp_buf,1);
-  //   frame_data[bytes_read] = tmp_buf[0];
-  //   statemachine(frame_data[bytes_read],type);
-  //   bytes_read += 1;
-  //   if(checksum == -1)
-  //   {
-  //     STOP = TRUE;
-  //     return_check = 0;
-  //     break;
-  //   }
-  // }
-  // checksum = 0;
-  // state = 0;
 
   while (STOP == FALSE)
   {
-    if(!rej)
+    for(int i = 0; i < 4; i++)
     {
-      for(int i = 0; i < 4; i++)
+      read(fd,tmp_buf,1);
+      frame_data[bytes_read] = tmp_buf[0];
+      statemachine(frame_data[bytes_read],type);
+      bytes_read += 1;
+      if(checksum == -1)
       {
-        read(fd,tmp_buf,1);
-        frame_data[bytes_read] = tmp_buf[0];
-        statemachine(frame_data[bytes_read],type);
-        bytes_read += 1;
-        if(checksum == -1)
-        {
-          STOP = TRUE;
-          return_check = 0;
-          break;
-        }
+        STOP = TRUE;
+        return_check = 0;
+        break;
       }
-      checksum = 0;
-      state = 0;
     }
+    checksum = 0;
+    state = 0;
+
     if(((frame_data[2] == C_DISC) && (frame_data[3] == BCC_DISC)))
     {
       read(fd,tmp_buf,1);
-      printf("Disc Received\n");
+      printf("DISC Frame Received\n");
       return_check = -1;
+      disc = TRUE;
       break;
     }
 
@@ -731,7 +715,6 @@ int llread(char *packet)
       printf("bcc2 calculado2: %02X \n",check_bcc2(packet,datasize));
 
       pd.num_rej++;
-      rej = true;
       // Create REJ frame to respond
       unsigned char buf_sent[TYPE1_SIZE];
       buf_sent[0] = FLAG;
@@ -754,7 +737,7 @@ int llread(char *packet)
       }
 
       int bytes_sent = write(fd, buf_sent, TYPE1_SIZE);
-      printf("\n REJ Sent\n");
+      printf("\n REJ Frame Sent\n");
       pd.num_i_a++;
       printf("%d bytes written\n", bytes_sent);
 
@@ -905,20 +888,27 @@ int llclose(int showStatistics)
   }
   else if(ll->role == RECEIVER)
   {
+    printf("2 %d\n", disc);
+    int bytes_read;
     unsigned char buf_read[TYPE1_SIZE];
     while (STOP == FALSE)
     {
-      // Returns after 5 chars have been input
-      int bytes_read = read(fd, buf_read, TYPE1_SIZE);
-
-      for (int i = 0; i < TYPE1_SIZE; i++)
+      if (disc)
       {
-        printf("%02X ", buf_read[i]);
-        statemachine(buf_read[i],type);
+        checksum = 2;
       }
+      else
+      { // Returns after 5 chars have been input
+        bytes_read = read(fd, buf_read, TYPE1_SIZE);
 
-      printf("%d bytes received\n", bytes_read);
+        for (int i = 0; i < TYPE1_SIZE; i++)
+        {
+          printf("%02X ", buf_read[i]);
+          statemachine(buf_read[i],type);
+        }
 
+        printf("%d bytes received\n", bytes_read);
+      }
       if (checksum == 2)
       {
         printf("1st DISC Frame Received Sucessfully\n");
@@ -951,9 +941,9 @@ int llclose(int showStatistics)
 
       if (checksum == 2)
       {
-          printf("UA Frame Received Sucessfully\n");
-          pd.num_ua_b++;
-          return_check = 1;
+        printf("UA Frame Received Sucessfully\n");
+        pd.num_ua_b++;
+        return_check = 1;
       }
     }
   }
