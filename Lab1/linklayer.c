@@ -30,9 +30,9 @@ bool disc = FALSE;             // TRUE if DISC Received || FALSE if not
 time_t total_time;             // total program time -> resolution of 1s
 time_t file_time;              // total file transfer time -> resolution of 1s
 
-int debug_i = 0;               // debug APAGAR
+int debug_i = 0;               // debug
 
-// Debug function APAGAR
+// Debug function
 void debugp(int s)
 {
   printf("Debug nº %d -> %d\n",debug_i, s);
@@ -151,7 +151,7 @@ void atemptHandler(int signal)
 // Updates checksum incase an error ocorred in the state machine
 void errorcheck()
 {
-  checksum = -1; // error
+  checksum = -1; // error in frame
   state = 0;
 }
 
@@ -311,16 +311,11 @@ int llopen(linkLayer connectionParameters)
     exit(-1);
   }
 
-  printf("%02X \n", cfgetospeed(&oldtio));
-  printf("%d \n", cfgetospeed(&oldtio));
-
   // Clear struct for new port settings
   bzero(&newtio, sizeof(newtio));
 
   // Check baudrate for the new termios struct
-  newtio.c_cflag = baudrate_check(cfgetospeed(&oldtio)) | CS8 | CLOCAL | CREAD; //ESTE EM principio SERA O FINAL E CORRETO
-
-  // newtio.c_cflag = baudrate_check(ll->baudRate) | CS8 | CLOCAL | CREAD;
+  newtio.c_cflag = baudrate_check(cfgetospeed(&oldtio)) | CS8 | CLOCAL | CREAD;
 
   newtio.c_iflag = IGNPAR;
   newtio.c_oflag = 0;
@@ -348,7 +343,7 @@ int llopen(linkLayer connectionParameters)
 
   printf("New termios structure set\n");
 
-  // Set alarm function handler -> atemptHandler
+  // Set alarm function handler -> atemptHandler()
   (void) signal(SIGALRM, atemptHandler);
 
   // initialize protocol_data struct pd
@@ -376,7 +371,7 @@ int llopen(linkLayer connectionParameters)
         // Create SET frame to send
         unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C_SET, BCC_SET, FLAG};
 
-        for (int i = 0; i < TYPE1_SIZE; i++)//fica o print?
+        for (int i = 0; i < TYPE1_SIZE; i++)
         {
           printf("%02X ", buf_sent[i]);
         }
@@ -488,7 +483,7 @@ int llwrite(char *buf, int bufSize)
   frame[0] = FLAG;
   frame[1] = A;
   // Updates depending on the sequence number(Ns)
-  if (!N)       
+  if (!N)
   {
     frame[2] = C_I0;
     frame[3] = BCC_I0;
@@ -638,7 +633,7 @@ int llread(char *packet)
       break;
     }
 
-    // Data single byte reading 
+    // Data single byte reading
     while (check != 2)
     {
       read(fd,tmp_buf,1);
@@ -916,7 +911,7 @@ int llclose(int showStatistics)
         printf("Waiting for UA\n");
         STOP = TRUE;
       }
-      memset(buf_read, 0, sizeof buf_read); //empties buf_read of previous data
+      memset(buf_read, 0, sizeof buf_read); // Empties buf_read of previous data
       bytes_read = read(fd, buf_read, TYPE1_SIZE);
 
       for (int i = 0; i < TYPE1_SIZE; i++)
