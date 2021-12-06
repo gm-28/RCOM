@@ -633,7 +633,7 @@ int llread(char *packet)
       break;
     }
 
-    // Data single byte reading
+    // Data single byte reading till the end to clear the cable buffer
     while (check != 2)
     {
       read(fd,tmp_buf,1);
@@ -642,10 +642,7 @@ int llread(char *packet)
       {
         frame_data[bytes_read] = tmp_buf[0];
         check = 2;
-        if(check == 2)
-        {
-          break;
-        }
+        break;
       }
       else
       {
