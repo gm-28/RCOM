@@ -1,5 +1,3 @@
-//mudar dps nomenclatura dos defines BCC1 -> BCC_TX
-
 typedef struct protocol_data {
   int num_set_a;  // total number of SET frames sent
   int num_i_a;    // total number of I frames sent
@@ -29,12 +27,12 @@ typedef struct protocol_data {
 // 0b00000011 -> 3 SET
 #define C_SET 0X03
 // XOR(A,C) -> 6
-#define BCC_SET (A^C1)
+#define BCC_SET (A^C_SET)
 
 // 0b00000111 -> 7 UA
 #define C_UA 0X07
 // XOR(A,C) -> 2
-#define BCC_UA (A^C2)
+#define BCC_UA (A^C_UA)
 
 // 0b00000000 -> 0 I
 #define C_I0 0X00

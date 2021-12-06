@@ -108,32 +108,24 @@ int baudrate_check(int baudrate_i)
   return baudrate_f;
 }
 
-//??????????????????
+// Calculates the xor value off all data after being destuffed
 char check_bcc2(char buf[],int bufsize)
 {
   char bcc2 = buf[0];
   for(int i = 1; i < bufsize; i++)
   {
     bcc2 ^= buf[i];
-    //printf("buf[%d]=%02X ",i,buf[i]);
-    //printf(" bcc2 calculado: %02X \n",bcc2);
   }
   return bcc2;
 }
 
-//??????????????????????
-//se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110)
-//ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
+// Returns true if the sequence 7d-5e occurs and false otherwise
 bool destuffing(char buf1,char buf2)
 {
   return ((buf1 == 0x7d) && (buf2 == 0x5e));
 }
 
-//???????????????????????''
-//obj: se a FLAG aparecer em A OU C fazer stuffing e retornar true caso ocorra stuffing e false caso contrario
-//se aparecer 0x7e/FLAG/01111110 é modificado pela sequencia 0x7d0x5e(0x7d/1111101-0x5e/1011110)
-//ou escape octate + resultado do ou exclusivo de 0x7e com 0x20
-//unsigned char stuffing (unsigned char* buf,int buf_size)
+// Returns true if 7e/FLAG occurs in the buffer buf and false otherwise
 bool stuffing (char buf)
 {
   return buf == FLAG;
@@ -143,7 +135,7 @@ bool stuffing (char buf)
 void atemptHandler(int signal)
 {
   attemptCount++;
-  attemptStart = FALSE; //se não ele não entra no ciclo while de novo
+  attemptStart = FALSE;
   checksum = 0;
   if (attemptCount > ll->numTries)
   {
@@ -194,12 +186,12 @@ void statemachine(unsigned char buf, int type)
       }
       break;
     case 2: //A ok
-      if ((buf == C2))
+      if ((buf == C_UA))
       {
         state = 3;
         checksum++;
       }
-      else if ((buf == C1) && (ll->role == RECEIVER))
+      else if ((buf == C_SET) && (ll->role == RECEIVER))
       {
         state = 3;
         checksum++;
@@ -231,11 +223,11 @@ void statemachine(unsigned char buf, int type)
       }
       break;
     case 3: //C ok
-      if ((buf == (BCC2)))
+      if ((buf == (BCC_UA)))
       {
         state = 4;
       }
-      else if ((buf == (BCC1)))
+      else if ((buf == (BCC_SET)))
       {
         state = 4;
       }
@@ -303,7 +295,7 @@ int llopen(linkLayer connectionParameters)
   ll->timeOut = connectionParameters.timeOut;
   sprintf(ll->serialPort,"%s",connectionParameters.serialPort);
 
-  // Open file???
+  // Opens serial port connection
   fd = open(ll->serialPort, O_RDWR | O_NOCTTY );
   if (fd < 0)
   {
@@ -325,10 +317,10 @@ int llopen(linkLayer connectionParameters)
   // Clear struct for new port settings
   bzero(&newtio, sizeof(newtio));
 
-  //  Check baudrate for the new termios struct
+  // Check baudrate for the new termios struct
   newtio.c_cflag = baudrate_check(cfgetospeed(&oldtio)) | CS8 | CLOCAL | CREAD; //ESTE EM principio SERA O FINAL E CORRETO
 
-  //newtio.c_cflag = baudrate_check(ll->baudRate) | CS8 | CLOCAL | CREAD;
+  // newtio.c_cflag = baudrate_check(ll->baudRate) | CS8 | CLOCAL | CREAD;
 
   newtio.c_iflag = IGNPAR;
   newtio.c_oflag = 0;
@@ -356,7 +348,7 @@ int llopen(linkLayer connectionParameters)
 
   printf("New termios structure set\n");
 
-  // Set alarm function handler -> atemptHandler -> funçao que vai ser envocada
+  // Set alarm function handler -> atemptHandler
   (void) signal(SIGALRM, atemptHandler);
 
   // initialize protocol_data struct pd
@@ -371,7 +363,7 @@ int llopen(linkLayer connectionParameters)
   pd.num_set_b = 0;
   pd.num_i_b = 0;
   pd.num_disc_Tb = 0;
-  pd.tries = 1;             // 1 in order to account for the initial frame that will cause the retransmission
+  pd.tries = 0;
 
   type = 1;
 
@@ -382,7 +374,7 @@ int llopen(linkLayer connectionParameters)
       if (attemptStart == FALSE)
       {
         // Create SET frame to send
-        unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C1, BCC1, FLAG};
+        unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C_SET, BCC_SET, FLAG};
 
         for (int i = 0; i < TYPE1_SIZE; i++)//fica o print?
         {
@@ -458,7 +450,7 @@ int llopen(linkLayer connectionParameters)
         printf("SET Frame Received Sucessfully\n");
         pd.num_set_a++;
         // Create UA frame to respond
-        unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C2, BCC2, FLAG};
+        unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C_UA, BCC_UA, FLAG};
 
         for (int i = 0; i < TYPE1_SIZE; i++)
         {
@@ -495,7 +487,8 @@ int llwrite(char *buf, int bufSize)
   int framesize = 0;
   frame[0] = FLAG;
   frame[1] = A;
-  if (!N)
+  // Updates depending on the sequence number(Ns)
+  if (!N)       
   {
     frame[2] = C_I0;
     frame[3] = BCC_I0;
@@ -508,7 +501,7 @@ int llwrite(char *buf, int bufSize)
   framesize = 4;
   for (int i = 0; i < bufSize; i++)
   {
-    if(!stuffing(buf[i]))
+    if(!stuffing(buf[i]))    // Stuffing the data buffer
     {
       frame[framesize] = buf[i];
     }
@@ -522,9 +515,9 @@ int llwrite(char *buf, int bufSize)
     data_s++;
   }
 
-  //notsure
+  // BCC2 calculation
   frame[framesize] = check_bcc2(buf,bufSize);
-  if(stuffing(frame[framesize]))
+  if(stuffing(frame[framesize]))                // BCC2 stuffing
   {
     frame[framesize] = 0x7d;
     framesize++;
@@ -546,8 +539,6 @@ int llwrite(char *buf, int bufSize)
 
       printf("\nI Frame Sent\n");
       pd.num_i_a++;
-      // pd.num_i_b = attemptCount;   //caso ele faca timeout no llwrite
-
       printf("Waiting for RR\n");
 
       while (STOP == FALSE)
@@ -586,22 +577,18 @@ int llwrite(char *buf, int bufSize)
             pd.num_rr++;
             alarm(0); // turns off alarm
             return_check = data_s;  // number of chars written
-            pd.num_i_b += attemptCount;
             attemptCount = 0;
           }
         }
-        // else                       //n funciona pois vai ultrapassar em mais +\ o dps se tiver on ele vai somar +=
-        // {
-        //   printf("HELLO1 %d\n",pd.num_i_b);
-        //   pd.num_i_b = attemptCount;
-        //   printf("HELLO2 %d\n",pd.num_i_b);
-        // }
+        else if (attemptCount < (ll->numTries+1))
+        {
+          pd.num_i_b ++;
+        }
         STOP = TRUE;
       }
     }
   // 3s alarm
   }
-  printf("HELLO3 %d\n",pd.num_i_b);
   state = 0;
   attemptStart = FALSE;
   STOP = FALSE;
@@ -627,11 +614,11 @@ int llread(char *packet)
   {
     for(int i = 0; i < 4; i++)
     {
-      read(fd,tmp_buf,1);
+      read(fd,tmp_buf,1);           // Single byte reading
       frame_data[bytes_read] = tmp_buf[0];
       statemachine(frame_data[bytes_read],type);
       bytes_read += 1;
-      if(checksum == -1)
+      if(checksum == -1)            // In case of error in the header stops
       {
         STOP = TRUE;
         return_check = 0;
@@ -641,6 +628,7 @@ int llread(char *packet)
     checksum = 0;
     state = 0;
 
+    // In case the transmitter disconnects before the file transfer is complete
     if(((frame_data[2] == C_DISC) && (frame_data[3] == BCC_DISC)))
     {
       read(fd,tmp_buf,1);
@@ -650,6 +638,7 @@ int llread(char *packet)
       break;
     }
 
+    // Data single byte reading 
     while (check != 2)
     {
       read(fd,tmp_buf,1);
@@ -670,10 +659,12 @@ int llread(char *packet)
       bytes_read += 1;
     }
 
-    //stuffing do bcc2 e verficação da posição do bcc2 para colocar os dados só até ao bcc2(não inclusive)
+    // Bcc2 stuffing and bcc2 position check to insert data in the frame leading up to bcc2 (not including)
     char bcc2;
     int bcc2p;
     bcc2_pos=bytes_read;
+
+    // Bcc2 destuffing and calculation of the Bcc2 position
     if(destuffing(frame_data[bytes_read-2],frame_data[bytes_read-1]))
     {
       destf_count++;
@@ -687,8 +678,8 @@ int llread(char *packet)
     }
     bcc2p = bcc2_pos;
 
-    //destuffing e colocação dos dados no pacote
-    for (int i = 0; i < bytes_read + 1; i++)//ir até flag bytesread=pos de flag
+    // Destuffing and insertion of the date in the packet
+    for (int i = 0; i < bytes_read + 1; i++)
     {
       statemachine(frame_data[i],type);
       if((state == 4) && (i > 3) && (i < bcc2p))
@@ -709,11 +700,9 @@ int llread(char *packet)
     }
     return_check = datasize; // number of chars read
 
+    // Bcc2 calculation after destuffing and comparison with the one received to check if the data is correct if not we send a rejection
     if(bcc2 != check_bcc2(packet,datasize))
     {
-      printf("bcc2 original: %02X \n",bcc2);
-      printf("bcc2 calculado2: %02X \n",check_bcc2(packet,datasize));
-
       pd.num_rej++;
       // Create REJ frame to respond
       unsigned char buf_sent[TYPE1_SIZE];
@@ -742,8 +731,8 @@ int llread(char *packet)
       printf("%d bytes written\n", bytes_sent);
 
       STOP = TRUE;
-      return_check = 0; //dados para o ficheiro rejeitados
-      checksum = -1; //mudar para errorcheck?????
+      return_check = 0; //Data to file rejected
+      checksum = -1;
     }
 
     if (checksum == 2)
@@ -859,9 +848,9 @@ int llclose(int showStatistics)
               attemptCount = 0;
             }
           }
-          else       //caso haja timeout no disc
+          else if (attemptCount < (ll->numTries+1))
           {
-            pd.num_disc_Tb = attemptCount;
+            pd.num_disc_Tb++;
           }
           STOP = TRUE;
         }
@@ -872,7 +861,7 @@ int llclose(int showStatistics)
     if(attemptCount < (ll->numTries+1))
     {
       // Create UA frame to send
-      unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C2, BCC2, FLAG};
+      unsigned char buf_sent[TYPE1_SIZE] = {FLAG, A, C_UA, BCC_UA, FLAG};
       for (int i = 0; i < TYPE1_SIZE; i++)
       {
         printf("%02X ", buf_sent[i]);
@@ -888,7 +877,6 @@ int llclose(int showStatistics)
   }
   else if(ll->role == RECEIVER)
   {
-    printf("2 %d\n", disc);
     int bytes_read;
     unsigned char buf_read[TYPE1_SIZE];
     while (STOP == FALSE)
