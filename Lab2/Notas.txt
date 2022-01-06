@@ -1,0 +1,79 @@
+terminal 1 -> telnet ftp.up.pt 21
+Trying 193.137.29.15...
+Connected to ftp.up.pt.
+Escape character is '^]'.
+220-Welcome to the University of Porto's mirror archive (mirrors.up.pt)
+220----------------------------------------------------------------
+220-
+220-All connections and transfers are logged. The max number of connections is 200.
+220-
+220-For more information please visit our website: http://mirrors.up.pt/
+220-Questions and comments can be sent to mirrors@uporto.pt
+220-
+220-
+220 
+-----------------------
+user anonymous
+331 Please specify the password.
+-----------------------
+pass test
+230 Login successful.
+-----------------------
+pasv
+227 Entering Passive Mode (193,137,29,15,199,167)
+-----------------------
+terminal 2 -> telnet ftp.up.pt 51111 -> 199*256+167 = 51111
+-----------------------
+terminal 1 -> retr pub/ubuntu-feup-legacy/2010/ubuntu-feup/changelog.txt
+150 Opening BINARY mode data connection for pub/ubuntu-feup-legacy/2010/ubuntu-feup/changelog.txt (3175 bytes).
+226 Transfer complete.
+421 Timeout.
+Connection closed by foreign host.
+ftp://ftp.up.pt/pub/videolan/debian/update.sh
+ftp://ftp.up.pt/pub/ubuntu-feup-legacy/2010/ubuntu-feup/changelog.txt
+ftp://ftp.up.pt/pub/ubuntu-feup-legacy/2010/ubuntu-feuplive/pacotes.txt
+
+diff -s changelog.txt changelog2.txt
+
+https://stackoverflow.com/questions/14539867/how-to-display-a-progress-indicator-in-pure-c-c-cout-printf
+
+
+
+
+
+
+
+
+
+
+
+
+guilherme@debian:~/Downloads/Example Code-20220103$ ./download ftp://ftp.up.pt/pub/ubuntu-feup-legacy/2010/ubuntu-feup/changelog.txt
+ftp.up.pt
+pub/ubuntu-feup-legacy/2010/ubuntu-feup/changelog.txt
+changelog.txt
+Host name  : mirrors.up.pt
+IP Address : 193.137.29.15
+220-Welcome to the University of Porto's mirror archive (mirrors.up.pt)
+220----------------------------------------------------------------
+220-
+220-All connections and transfers are logged. The max number of connections is 200.
+220-
+220-For more information please visit our website: http://mirrors.up.pt/
+220-Questions and comments can be sent to mirrors@uporto.pt
+220-
+220-
+220 
+Starting Logging Procedure
+230 Login successful.
+5
+227 Entering Passive Mode (193,137,29,15,205,150)
+193,137,29,15,205,150
+205 150
+205 150
+52630
+retr ./pub/ubuntu-feup-legacy/2010/ubuntu-feup/changelog.txt
+61
+150 Opening BINARY mode data connection for ./pub/ubuntu-feup-legacy/2010/ubuntu-feup/changelog.txt (3175 bytes).
+226 Transfer complete.
+
